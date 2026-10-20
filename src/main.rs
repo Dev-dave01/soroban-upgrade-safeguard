@@ -633,7 +633,8 @@ struct Args {
     verbose: u8,
 
     /// Control when ANSI color is used. --no-color overrides this option.
-    #[arg(long, value_enum, default_value_t = ColorMode::Auto)]
+    /// Values are accepted in any case, like --format.
+    #[arg(long, value_enum, ignore_case = true, default_value_t = ColorMode::Auto)]
     color: ColorMode,
 
     /// Allow HTTP connections for RPC when the host is a loopback address
