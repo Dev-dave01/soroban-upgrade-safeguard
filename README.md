@@ -608,7 +608,23 @@ object per category (`category`, `severity`, `trigger_description`,
 soroban-upgrade-safeguard categories --format json
 ```
 
-Both formats are generated from the same source of truth the comparison
+For a table to paste into a wiki or pull request, use Markdown:
+
+```bash
+soroban-upgrade-safeguard categories --format markdown
+```
+
+Use `--severity critical`, `--severity warning`, or `--severity info` to list
+only categories with that exact default severity. The filter works with every
+format; omitting it lists all categories:
+
+```bash
+soroban-upgrade-safeguard categories --severity critical
+soroban-upgrade-safeguard categories --severity warning --format json
+soroban-upgrade-safeguard categories --severity info --format markdown
+```
+
+All formats are generated from the same source of truth the comparison
 analysis uses, so the listing can never drift from the categories the tool
 actually emits. See [docs/finding-categories.md](docs/finding-categories.md) for
 the full documented taxonomy.

@@ -1215,6 +1215,10 @@ struct RenderArgs {
     #[arg(long, value_enum, ignore_case = true, default_value_t = RenderFormat::Text)]
     format: RenderFormat,
 
+    /// Write the rendered report atomically to this path instead of stdout.
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
+
     /// Print the remediation guidance stored in the report, if it has any.
     #[arg(long)]
     explain: bool,
@@ -1252,9 +1256,13 @@ struct UpgradeReportArgs {
 /// `init`: generate a suppression config from current findings.
 #[derive(ClapArgs, Debug)]
 struct InitArgs {
-    /// Overwrite existing .safeguard.toml if it exists
+    /// Overwrite the selected config file if it exists
     #[arg(long)]
     force: bool,
+
+    /// Destination path for the generated config.
+    #[arg(long, value_name = "PATH", default_value = DEFAULT_CONFIG_FILE)]
+    output: PathBuf,
 
     /// Path to the old WASM file (or contract ID with --rpc-url)
     #[arg(value_name = "OLD")]
@@ -1308,6 +1316,8 @@ enum CategoriesFormat {
     Text,
     /// Machine-readable JSON array, one object per category.
     Json,
+    /// Markdown table for documentation and pull requests.
+    Markdown,
 }
 
 /// `categories`: list every finding category with its default severity,
@@ -1321,6 +1331,10 @@ struct CategoriesArgs {
     /// Output format.
     #[arg(long, value_enum, ignore_case = true, default_value_t = CategoriesFormat::Text)]
     format: CategoriesFormat,
+
+    /// List only categories with this exact default severity.
+    #[arg(long, value_enum, ignore_case = true, value_name = "SEVERITY")]
+    severity: Option<MinimumSeverity>,
 
     /// Do not color output.
     #[arg(long)]
@@ -1668,7 +1682,7 @@ fn wrap_with_prefix(prefix: &str, text: &str, width: usize) -> String {
 }
 
 /// `categories`: list every finding category with its default severity and
-/// remediation guidance, in `--format` `text` or `json`. Both formats are
+/// remediation guidance, in `--format` `text`, `json`, or `markdown`. All formats are
 /// generated from [`category::FindingCategory::all()`] — the single source of
 /// truth the analysis uses to classify findings — so the listing cannot drift
 /// from the categories the tool actually emits.
@@ -1682,9 +1696,19 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
         colored::control::set_override(false);
     }
 
+    let categories: Vec<_> = category::FindingCategory::all()
+        .iter()
+        .copied()
+        .filter(|cat| {
+            args.severity
+                .as_ref()
+                .map_or(true, |severity| &cat.severity() == severity.as_severity())
+        })
+        .collect();
+
     match args.format {
         CategoriesFormat::Json => {
-            let entries: Vec<serde_json::Value> = category::FindingCategory::all()
+            let entries: Vec<serde_json::Value> = categories
                 .iter()
                 .map(|c| {
                     serde_json::json!({
@@ -1697,7 +1721,8 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
                 .collect();
             println!("{}", serde_json::to_string_pretty(&entries)?);
         }
-        CategoriesFormat::Text => print!("{}", render_categories_text()),
+        CategoriesFormat::Text => print!("{}", render_categories_text(&categories)),
+        CategoriesFormat::Markdown => print!("{}", render_categories_markdown(&categories)),
     }
     Ok(())
 }
@@ -1851,14 +1876,42 @@ fn run_doctor(args: &DoctorArgs) -> Result<()> {
     Ok(())
 }
 
-fn render_categories_text() -> String {
+fn markdown_table_cell(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('\\', "&#92;")
+        .replace('`', "&#96;")
+        .replace('|', "&#124;")
+        .replace('\r', "")
+        .replace('\n', "<br>")
+}
+
+fn render_categories_markdown(categories: &[category::FindingCategory]) -> String {
+    let mut out = String::from(
+        "| Category | Severity | Trigger | Remediation |\n\
+         | --- | --- | --- | --- |\n",
+    );
+    for cat in categories {
+        out.push_str(&format!(
+            "| {} | {:?} | {} | {} |\n",
+            markdown_table_cell(cat.as_str()),
+            cat.severity(),
+            markdown_table_cell(cat.trigger_description()),
+            markdown_table_cell(cat.remediation()),
+        ));
+    }
+    out
+}
+
+fn render_categories_text(categories: &[category::FindingCategory]) -> String {
     const WIDTH: usize = 80;
     let mut out = String::new();
-    out.push_str("Every finding category, with its default severity, what triggers it, and\n");
+    out.push_str("Finding categories, with their default severity, what triggers them, and\n");
     out.push_str("remediation guidance. See docs/finding-categories.md for the full reference.\n");
 
     let mut first = true;
-    for cat in category::FindingCategory::all() {
+    for cat in categories {
         if !first {
             out.push('\n');
         }
@@ -2523,35 +2576,37 @@ fn run_render(args: &RenderArgs) -> Result<()> {
         )
     })?;
 
-    match args.format {
+    let rendered = match args.format {
         RenderFormat::Text => {
             let width = resolve_text_width(args.width, std::io::stdout().is_terminal());
             let text = report.to_text_with_width(args.explain, width);
-            println!(
-                "{}",
-                if args.plain {
-                    report::plainify(&text)
-                } else {
-                    text
-                }
-            );
+            let text = if args.plain {
+                report::plainify(&text)
+            } else {
+                text
+            };
+            format!("{text}\n")
         }
         RenderFormat::Markdown => {
             let markdown = report.to_markdown();
-            println!(
-                "{}",
-                if args.plain {
-                    report::plainify(&markdown)
-                } else {
-                    markdown
-                }
-            );
+            let markdown = if args.plain {
+                report::plainify(&markdown)
+            } else {
+                markdown
+            };
+            format!("{markdown}\n")
         }
         RenderFormat::GithubActions => {
             // Disable color: annotations must not contain ANSI escape codes.
             colored::control::set_override(false);
-            print!("{}", report.to_github_actions());
+            report.to_github_actions()
         }
+    };
+
+    match &args.output {
+        Some(path) => write_atomically(path, rendered.as_bytes())
+            .with_context(|| format!("Failed to write rendered report to '{}'", path.display()))?,
+        None => print!("{rendered}"),
     }
 
     if !report.is_safe {
@@ -2617,7 +2672,7 @@ fn run_init(args: &InitArgs) -> Result<()> {
     use std::fs;
     use std::io::Write;
 
-    let config_path = Path::new(DEFAULT_CONFIG_FILE);
+    let config_path = &args.output;
 
     // Check if config already exists
     if config_path.exists() && !args.force {

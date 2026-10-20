@@ -179,6 +179,37 @@ fn rendering_from_a_file_works() {
 }
 
 #[test]
+fn render_output_writes_each_format_and_preserves_the_verdict() {
+    let report = live("json");
+    let dir = std::env::temp_dir().join(format!("sus-render-output-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("report.txt");
+
+    for format in ["text", "markdown", "github-actions"] {
+        std::fs::write(&path, "previous report").unwrap();
+        let (expected, expected_code) = render(&report, &["--format", format]);
+        let (stdout, code) = render(
+            &report,
+            &["--format", format, "--output", path.to_str().unwrap()],
+        );
+        assert!(stdout.is_empty());
+        assert_eq!(code, expected_code);
+        assert_eq!(code, 1, "the failing verdict must be preserved");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), expected);
+        assert!(!path.with_extension("txt.tmp").exists());
+    }
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn render_help_documents_output() {
+    let output = bin().args(["render", "--help"]).output().unwrap();
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("--output <PATH>"));
+}
+
+#[test]
 fn the_report_carries_the_interface_hashes() {
     let report: serde_json::Value = serde_json::from_str(&live("json")).unwrap();
 
