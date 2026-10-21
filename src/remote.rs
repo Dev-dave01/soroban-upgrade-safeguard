@@ -85,9 +85,6 @@ pub const DEFAULT_MAX_REDIRECTS: u32 = 5;
 /// directory when [`RemoteFetchConfig::cache_dir`] is not set explicitly.
 pub const CACHE_DIR_ENV_VAR: &str = "SOROBAN_SAFEGUARD_REMOTE_CACHE";
 
-/// Environment variable that overrides the default reproducible-build manifest path.
-pub const BUILD_MANIFEST_ENV_VAR: &str = "SOROBAN_SAFEGUARD_BUILD_MANIFEST";
-
 /// A parsed `https://…#sha256=<hex>` reference: a remote artifact together
 /// with the digest it must match after download.
 #[derive(Debug, Clone, PartialEq, Eq)]
