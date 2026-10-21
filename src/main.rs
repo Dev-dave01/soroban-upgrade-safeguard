@@ -1307,6 +1307,12 @@ struct PreflightArgs {
     /// Do not color output
     #[arg(long)]
     no_color: bool,
+
+    /// Destination path for the preflight output. Defaults to stdout.
+    /// Written atomically (temp file + rename) and always overwrites an
+    /// existing file at this path.
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// Output format for the `categories` listing.
@@ -1589,62 +1595,14 @@ fn run_preflight(args: &PreflightArgs) -> Result<()> {
     let report =
         preflight::run_preflight_with_timeout(&config, Duration::from_secs(args.timeout_secs));
 
-    if args.format == OutputFormat::Json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    let content = if args.format == OutputFormat::Json {
+        serde_json::to_string_pretty(&report)?
     } else {
-        println!("Preflight check: {}", report.rpc_endpoint);
-        println!();
+        render_preflight_text(&report)
+    };
 
-        let transport_detail = if report.transport.success {
-            Some(format!(
-                "HTTP {}",
-                report.transport.status_code.unwrap_or_default()
-            ))
-        } else {
-            report.transport.error.clone()
-        };
-        print_preflight_line("Transport", report.transport.success, transport_detail);
+    write_preflight_output(args.output.as_deref(), &content)?;
 
-        let protocol_detail = if report.protocol.success {
-            Some(format!(
-                "jsonrpc {}, id matches",
-                report.protocol.jsonrpc_version.as_deref().unwrap_or("?")
-            ))
-        } else {
-            report.protocol.error.clone()
-        };
-        print_preflight_line("Protocol", report.protocol.success, protocol_detail);
-
-        let capability_detail = if report.capability.success {
-            Some(match report.capability.latest_ledger {
-                Some(seq) => format!(
-                    "{} succeeded (latestLedger {seq})",
-                    report.capability.method
-                ),
-                None => format!("{} succeeded", report.capability.method),
-            })
-        } else {
-            report.capability.error.clone()
-        };
-        print_preflight_line("Capability", report.capability.success, capability_detail);
-
-        println!();
-        println!(
-            "Overall: {}",
-            if report.all_passed() {
-                "PASS".green().bold()
-            } else {
-                "FAIL".red().bold()
-            }
-        );
-        println!();
-        println!(
-            "Note: a passing preflight check confirms endpoint connectivity only. \
-             It does not verify that any specific contract or network is compatible."
-        );
-    }
-
-    std::io::stdout().flush().ok();
     if !report.all_passed() {
         std::process::exit(1);
     }
@@ -1967,6 +1925,94 @@ fn print_preflight_line(label: &str, success: bool, detail: Option<String>) {
     match detail {
         Some(detail) => println!("{label:<12}{status}  {detail}"),
         None => println!("{label:<12}{status}"),
+    }
+}
+
+/// Render the preflight report as human-readable text.
+fn render_preflight_text(report: &preflight::PreflightReport) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("Preflight check: {}\n", report.rpc_endpoint));
+    out.push('\n');
+
+    let transport_detail = if report.transport.success {
+        Some(format!(
+            "HTTP {}",
+            report.transport.status_code.unwrap_or_default()
+        ))
+    } else {
+        report.transport.error.clone()
+    };
+    append_preflight_line(&mut out, "Transport", report.transport.success, transport_detail);
+
+    let protocol_detail = if report.protocol.success {
+        Some(format!(
+            "jsonrpc {}, id matches",
+            report.protocol.jsonrpc_version.as_deref().unwrap_or("?")
+        ))
+    } else {
+        report.protocol.error.clone()
+    };
+    append_preflight_line(&mut out, "Protocol", report.protocol.success, protocol_detail);
+
+    let capability_detail = if report.capability.success {
+        Some(match report.capability.latest_ledger {
+            Some(seq) => format!(
+                "{} succeeded (latestLedger {seq})",
+                report.capability.method
+            ),
+            None => format!("{} succeeded", report.capability.method),
+        })
+    } else {
+        report.capability.error.clone()
+    };
+    append_preflight_line(&mut out, "Capability", report.capability.success, capability_detail);
+
+    out.push('\n');
+    out.push_str(&format!(
+        "Overall: {}\n",
+        if report.all_passed() {
+            "PASS".green().bold()
+        } else {
+            "FAIL".red().bold()
+        }
+    ));
+    out.push('\n');
+    out.push_str(
+        "Note: a passing preflight check confirms endpoint connectivity only. \
+         It does not verify that any specific contract or network is compatible.\n",
+    );
+    out
+}
+
+/// Append a preflight check line to a string buffer.
+fn append_preflight_line(out: &mut String, label: &str, success: bool, detail: Option<String>) {
+    let status = if success {
+        "PASS".green()
+    } else {
+        "FAIL".red()
+    };
+    match detail {
+        Some(detail) => out.push_str(&format!("{label:<12}{status}  {detail}\n")),
+        None => out.push_str(&format!("{label:<12}{status}\n")),
+    }
+}
+
+/// Print `content` to stdout, or write it atomically to `path` when given.
+/// Uses the same atomic-write (temp file + rename) pattern as extract and
+/// categories output. `content` gets exactly one trailing newline.
+fn write_preflight_output(path: Option<&Path>, content: &str) -> Result<()> {
+    match path {
+        Some(path) => {
+            let mut formatted = content.trim_end_matches('\n').to_string();
+            formatted.push('\n');
+            write_atomically(path, formatted.as_bytes())
+                .with_context(|| format!("Failed to write output file '{}'.", path.display()))
+        }
+        None => {
+            print!("{content}");
+            std::io::stdout().flush().ok();
+            Ok(())
+        }
     }
 }
 
