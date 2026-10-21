@@ -1339,6 +1339,12 @@ struct CategoriesArgs {
     #[arg(long, value_enum, ignore_case = true, default_value_t = CategoriesFormat::Text)]
     format: CategoriesFormat,
 
+    /// Look up a specific finding category by name. When given, only that
+    /// category's details are printed. Exit code is non-zero if the category
+    /// name is not recognized.
+    #[arg(long, value_name = "NAME")]
+    category: Option<String>,
+
     /// List only categories with this exact default severity.
     #[arg(long, value_enum, ignore_case = true, value_name = "SEVERITY")]
     severity: Option<MinimumSeverity>,
@@ -1687,6 +1693,40 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
         std::io::stdout().is_terminal(),
     ) {
         colored::control::set_override(false);
+    }
+
+    // If --category is specified, look up that specific category
+    if let Some(ref category_name) = args.category {
+        let all_categories = category::FindingCategory::all();
+        let found = all_categories
+            .iter()
+            .find(|cat| cat.as_str() == category_name);
+        
+        match found {
+            Some(cat) => {
+                let content = match args.format {
+                    CategoriesFormat::Json => {
+                        let entry = serde_json::json!({
+                            "category": cat.as_str(),
+                            "severity": cat.severity(),
+                            "trigger_description": cat.trigger_description(),
+                            "remediation": cat.remediation(),
+                        });
+                        serde_json::to_string_pretty(&entry)?
+                    }
+                    CategoriesFormat::Text => render_categories_text(&[*cat]),
+                    CategoriesFormat::Markdown => render_categories_markdown(&[*cat]),
+                };
+                return write_categories_output(args.output.as_deref(), &content);
+            }
+            None => {
+                anyhow::bail!(
+                    "Unknown category: '{}'\n\
+                     Run `categories` without --category to see the full list of recognized categories.",
+                    category_name
+                );
+            }
+        }
     }
 
     let categories: Vec<_> = category::FindingCategory::all()
