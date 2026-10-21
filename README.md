@@ -1852,6 +1852,7 @@ More detailed guides live in the [docs](docs/) folder. See the [Documentation In
 - [Semantic Versioning & Public API Policy](docs/semver_policy.md): what counts as a breaking change to the tool's own public API, the curated stable surface, and the deprecation policy.
 - [Signed Attestations](docs/attestations.md): DSSE signing, the in-toto predicate, offline verification, and security guidance.
 - [RPC Security Checklist](docs/rpc-security-checklist.md): operational checklist for endpoint trust, HTTPS, expected-hash pinning, credentials, and report retention when fetching a baseline over RPC.
+- [RPC Header Environment-Variable Convention](docs/rpc-header-convention.md): how `--rpc-header NAME=ENV_VAR` keeps RPC authentication secrets out of command-line arguments, process listings, and CI logs.
 - [Remote HTTPS Inputs](docs/remote-https-inputs.md): fetching WASM and spec inputs over HTTPS with digest verification, fetch limits, and caching.
 - [Environment Variables](docs/environment-variables.md): every environment variable the CLI reads, its precedence against the equivalent flag, and how to relocate caches in a sandboxed or ephemeral environment.
 - [Storage Schema Cookbook](docs/storage-schema-cookbook.md): worked examples for declaring storage schemas — common key enums, nested values, optional fields, and partial coverage.
