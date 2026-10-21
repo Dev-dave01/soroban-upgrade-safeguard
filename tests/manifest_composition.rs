@@ -1724,7 +1724,7 @@ fn custom_max_pairs_rejects_an_oversized_manifest_before_loading_any_wasm() {
 
     let combined = format!("{}{}", run.stdout, run.stderr);
     assert!(combined.contains("3 pairs"), "got: {combined}");
-    assert!(combined.contains("maximum of 2"), "got: {combined}");
+    assert!(combined.contains("maximum of 2 pairs"), "got: {combined}");
     assert!(combined.contains("--max-pairs"), "got: {combined}");
 
     // Rejected ahead of any WASM loading: no per-contract report exists.
