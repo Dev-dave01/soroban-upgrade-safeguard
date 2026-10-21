@@ -1324,6 +1324,44 @@ impl RenderableReport {
         output
     }
 
+    /// Render GitHub Actions workflow command annotations.
+    ///
+    /// Emits one annotation per finding, levelled to match the severity:
+    /// - `Critical` → `::error`
+    /// - `Warning`  → `::warning`
+    /// - `Info`     → `::notice`
+    ///
+    /// Suppressed findings are emitted as `::notice` instead of their original
+    /// severity, so they appear in the log without blocking the run.
+    pub fn to_github_actions(&self) -> String {
+        let mut output = String::new();
+        let mut categories: Vec<_> = self.findings_by_category.keys().collect();
+        categories.sort();
+        for category in categories {
+            if let Some(findings) = self.findings_by_category.get(category) {
+                for reported in findings {
+                    let finding = &reported.finding;
+                    let level = if reported.suppressed {
+                        "notice"
+                    } else {
+                        match finding.severity {
+                            Severity::Critical => "error",
+                            Severity::Warning => "warning",
+                            Severity::Info => "notice",
+                        }
+                    };
+                    let message = finding.message.replace(['\r', '\n'], " ");
+                    output.push_str(&format!("::{level}::[{category}] {message}\n"));
+                }
+            }
+        }
+        output.push_str(&format!(
+            "Soroban Upgrade Safeguard: {}\n",
+            if self.is_safe { "PASSED" } else { "FAILED" }
+        ));
+        output
+    }
+
     /// Render the complexity delta section as plain text.
     fn complexity_delta_text(&self) -> String {
         let mut out = String::new();
