@@ -6999,20 +6999,6 @@ fn scan_directories(
     })
 }
 
-#[allow(dead_code)]
-fn render_report(
-    report: &report::SafetyReport,
-    format: OutputFormat,
-    explain: bool,
-) -> Result<String> {
-    match format {
-        OutputFormat::Json => Ok(serde_json::to_string_pretty(&report.to_json())?),
-        OutputFormat::Markdown => Ok(report.generate_summary_markdown()),
-        OutputFormat::Text => Ok(report.generate_summary_text(explain)),
-        OutputFormat::GithubActions => Ok(render_github_actions(report)),
-    }
-}
-
 fn write_report_file(
     output_dir: &Path,
     contract_name: &str,
