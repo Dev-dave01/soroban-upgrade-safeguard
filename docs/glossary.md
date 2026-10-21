@@ -212,6 +212,13 @@ The default validation mode that compares the declared types and interfaces in c
 
 **See also:** [What a Passing Verdict Guarantees](documentation.md#what-a-passing-verdict-guarantees)
 
+### Decoder Registry
+The registry that selects a build's contract-spec decoder using the interface version recorded in its `contractenvmetav0` WASM custom section.
+
+**Use with:** `soroban-upgrade-safeguard extract <WASM>`
+
+**See also:** [Protocol-Versioned Contract-Spec Decoder Registry](decoder_registry.md)
+
 ### Empirical Validation
 Advanced validation mode that decodes real ledger storage entries against the new contract spec. This catches breaks in actual deployed data that structural analysis might miss.
 
