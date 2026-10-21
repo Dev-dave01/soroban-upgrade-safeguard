@@ -238,6 +238,13 @@ A structural break flagged by analysis, but no matching storage data was found i
 
 ## Input Sources
 
+### Batch Manifest
+A TOML or JSON file that lists the baseline and candidate contract pairs one run compares.
+
+**Use with:** `soroban-upgrade-safeguard --manifest release.toml`
+
+**See also:** [Batch Manifests](batch_manifests.md)
+
 ### RPC Baseline
 A baseline contract fetched directly from the network using `--contract-id` and `--rpc-url`. The tool retrieves and hash-verifies the on-chain WASM before comparison.
 
