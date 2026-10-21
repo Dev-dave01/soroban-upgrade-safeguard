@@ -1701,7 +1701,7 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
         let found = all_categories
             .iter()
             .find(|cat| cat.as_str() == category_name);
-        
+
         match found {
             Some(cat) => {
                 let content = match args.format {
@@ -1848,17 +1848,15 @@ fn run_doctor(args: &DoctorArgs) -> Result<()> {
 
             serde_json::to_string_pretty(&root)?
         }
-        DoctorFormat::Text => {
-            render_doctor_text(
-                version,
-                &enabled_features,
-                &remote_cache_dir,
-                &oci_cache_dir,
-                &metadata_cache_dir,
-                &config_source,
-                &suppressions,
-            )
-        }
+        DoctorFormat::Text => render_doctor_text(
+            version,
+            &enabled_features,
+            &remote_cache_dir,
+            &oci_cache_dir,
+            &metadata_cache_dir,
+            &config_source,
+            &suppressions,
+        ),
     };
 
     write_doctor_output(args.output.as_deref(), &content)
@@ -1897,9 +1895,18 @@ fn render_doctor_text(
     out.push('\n');
 
     out.push_str(&format!("{}\n", "Cache Directories:".bold()));
-    out.push_str(&format!("  Remote (https://): {}\n", remote_cache_dir.display()));
-    out.push_str(&format!("  OCI (oci://):      {}\n", oci_cache_dir.display()));
-    out.push_str(&format!("  Metadata:          {}\n", metadata_cache_dir.display()));
+    out.push_str(&format!(
+        "  Remote (https://): {}\n",
+        remote_cache_dir.display()
+    ));
+    out.push_str(&format!(
+        "  OCI (oci://):      {}\n",
+        oci_cache_dir.display()
+    ));
+    out.push_str(&format!(
+        "  Metadata:          {}\n",
+        metadata_cache_dir.display()
+    ));
     out.push('\n');
 
     out.push_str(&format!("{}\n", "Configuration:".bold()));
@@ -1913,20 +1920,35 @@ fn render_doctor_text(
             out.push_str("  Source:      default\n");
         }
     }
-    out.push_str(&format!("  Suppressions loaded: {}\n", suppressions.rules().len()));
+    out.push_str(&format!(
+        "  Suppressions loaded: {}\n",
+        suppressions.rules().len()
+    ));
     out.push('\n');
 
     out.push_str(&format!("{}\n", "Environment:".bold()));
     if let Some(val) = std::env::var_os(CONFIG_PATH_ENV_VAR) {
-        out.push_str(&format!("  {}={}\n", CONFIG_PATH_ENV_VAR, val.to_string_lossy()));
+        out.push_str(&format!(
+            "  {}={}\n",
+            CONFIG_PATH_ENV_VAR,
+            val.to_string_lossy()
+        ));
     } else {
         out.push_str(&format!("  {} (not set)\n", CONFIG_PATH_ENV_VAR));
     }
     if let Some(val) = std::env::var_os(remote::CACHE_DIR_ENV_VAR) {
-        out.push_str(&format!("  {}={}\n", remote::CACHE_DIR_ENV_VAR, val.to_string_lossy()));
+        out.push_str(&format!(
+            "  {}={}\n",
+            remote::CACHE_DIR_ENV_VAR,
+            val.to_string_lossy()
+        ));
     }
     if let Some(val) = std::env::var_os(oci::CACHE_DIR_ENV_VAR) {
-        out.push_str(&format!("  {}={}\n", oci::CACHE_DIR_ENV_VAR, val.to_string_lossy()));
+        out.push_str(&format!(
+            "  {}={}\n",
+            oci::CACHE_DIR_ENV_VAR,
+            val.to_string_lossy()
+        ));
     }
     if let Some(val) = std::env::var_os("NO_COLOR") {
         out.push_str(&format!("  NO_COLOR={}\n", val.to_string_lossy()));
@@ -2036,7 +2058,12 @@ fn render_preflight_text(report: &preflight::PreflightReport) -> String {
     } else {
         report.transport.error.clone()
     };
-    append_preflight_line(&mut out, "Transport", report.transport.success, transport_detail);
+    append_preflight_line(
+        &mut out,
+        "Transport",
+        report.transport.success,
+        transport_detail,
+    );
 
     let protocol_detail = if report.protocol.success {
         Some(format!(
@@ -2046,7 +2073,12 @@ fn render_preflight_text(report: &preflight::PreflightReport) -> String {
     } else {
         report.protocol.error.clone()
     };
-    append_preflight_line(&mut out, "Protocol", report.protocol.success, protocol_detail);
+    append_preflight_line(
+        &mut out,
+        "Protocol",
+        report.protocol.success,
+        protocol_detail,
+    );
 
     let capability_detail = if report.capability.success {
         Some(match report.capability.latest_ledger {
@@ -2059,7 +2091,12 @@ fn render_preflight_text(report: &preflight::PreflightReport) -> String {
     } else {
         report.capability.error.clone()
     };
-    append_preflight_line(&mut out, "Capability", report.capability.success, capability_detail);
+    append_preflight_line(
+        &mut out,
+        "Capability",
+        report.capability.success,
+        capability_detail,
+    );
 
     out.push('\n');
     out.push_str(&format!(
@@ -2228,6 +2265,15 @@ fn write_print_schema_output(path: Option<&Path>, content: &str) -> Result<()> {
 
 /// Extract one build and write its exported interface as a lockfile.
 fn run_lockfile(args: &LockfileArgs) -> Result<()> {
+    // Check if the output path is a directory first, regardless of --force.
+    if args.output.is_dir() {
+        anyhow::bail!(
+            "Output path '{}' is a directory. Provide a file path instead, for example '{}'.",
+            args.output.display(),
+            args.output.join("interface.lock.json").display()
+        );
+    }
+
     if args.output.exists() && !args.force {
         anyhow::bail!(
             "{} already exists. Use --force to update it.",
@@ -2417,9 +2463,8 @@ fn run_lint(args: &LintArgs) -> Result<()> {
 
     match &args.output {
         Some(path) => {
-            write_atomically(path, output_text.as_bytes()).with_context(|| {
-                format!("Failed to write lint output to '{}'.", path.display())
-            })?;
+            write_atomically(path, output_text.as_bytes())
+                .with_context(|| format!("Failed to write lint output to '{}'.", path.display()))?;
         }
         None => print!("{output_text}"),
     }
@@ -4455,13 +4500,13 @@ fn render_batch_summary(
                     } else {
                         format!(" {{{}}}", format_labels(result.labels(), ""))
                     };
-                    
+
                     let critical_count = report.critical_count();
                     let warning_count = report.warning_count();
                     let info_count = report.info_count();
                     let migrated_count = report.migrated_count();
                     let suppressed_count = report.suppressed_count();
-                    
+
                     text.push_str(&format!(
                         "  - {}: {} [{}; {}] ({} {}, {} {}, {} {}, {} {}, {} {}){}\n",
                         result.name().bold(),
@@ -4469,15 +4514,31 @@ fn render_batch_summary(
                         report.scope().summary_line(),
                         result.coverage(),
                         critical_count,
-                        if critical_count == 1 { "critical" } else { "critical" },
+                        if critical_count == 1 {
+                            "critical"
+                        } else {
+                            "critical"
+                        },
                         warning_count,
-                        if warning_count == 1 { "warning" } else { "warnings" },
+                        if warning_count == 1 {
+                            "warning"
+                        } else {
+                            "warnings"
+                        },
                         info_count,
                         if info_count == 1 { "info" } else { "info" },
                         migrated_count,
-                        if migrated_count == 1 { "migrated" } else { "migrated" },
+                        if migrated_count == 1 {
+                            "migrated"
+                        } else {
+                            "migrated"
+                        },
                         suppressed_count,
-                        if suppressed_count == 1 { "suppressed" } else { "suppressed" },
+                        if suppressed_count == 1 {
+                            "suppressed"
+                        } else {
+                            "suppressed"
+                        },
                         labels_suffix
                     ));
                 }
@@ -4496,11 +4557,8 @@ fn render_batch_summary(
                     if let BatchResult::Error { error, .. } = result {
                         text.push_str(&format!("Pair error: {}\n", error));
                     }
-                    let detail = report.generate_summary_text_with_min_severity(
-                        false,
-                        width,
-                        min_severity,
-                    );
+                    let detail =
+                        report.generate_summary_text_with_min_severity(false, width, min_severity);
                     text.push_str(&destyle_text(detail, ascii, plain));
                     text.push_str("========================================\n\n");
                 }
@@ -4860,7 +4918,7 @@ fn run_single(
             .with_symlinks(old.symlink.clone(), new.symlink.clone())
         };
 
-        if mc_config.print_stats {
+        if mc_config.print_stats && !mc_config.no_cache {
             mc_stats.print_summary();
         }
 
@@ -4954,8 +5012,8 @@ fn run_single(
     // Print metadata-cache stats if requested (after the run so the final
     // hit/miss counts are available in a future extension; for now this
     // prints the directory summary since the cache session object lives
-    // inside the analysis pipeline).
-    if args.metadata_cache_stats {
+    // inside the analysis pipeline). Skip if the cache was bypassed.
+    if args.metadata_cache_stats && !args.no_metadata_cache {
         let mc_dir = args
             .metadata_cache_dir
             .clone()
@@ -5052,7 +5110,14 @@ fn render_to_outputs(
 ) -> Result<()> {
     for output in outputs {
         let content = render_single(
-            report, output.format, explain, ascii, plain, width, redact, min_severity,
+            report,
+            output.format,
+            explain,
+            ascii,
+            plain,
+            width,
+            redact,
+            min_severity,
         )?;
         emit_output(output, &content)?;
 
@@ -5392,7 +5457,9 @@ fn run_watch_mode(
                                 break;
                             }
                             if watch_shutdown_requested() {
-                                log.progress("\n🛑 SIGTERM received, shutting down watch mode...\n");
+                                log.progress(
+                                    "\n🛑 SIGTERM received, shutting down watch mode...\n",
+                                );
                                 return Ok(());
                             }
                             if start.elapsed() > timeout {
