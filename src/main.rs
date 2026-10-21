@@ -4918,7 +4918,7 @@ fn run_single(
             .with_symlinks(old.symlink.clone(), new.symlink.clone())
         };
 
-        if mc_config.print_stats {
+        if mc_config.print_stats && !mc_config.no_cache {
             mc_stats.print_summary();
         }
 
@@ -5012,8 +5012,8 @@ fn run_single(
     // Print metadata-cache stats if requested (after the run so the final
     // hit/miss counts are available in a future extension; for now this
     // prints the directory summary since the cache session object lives
-    // inside the analysis pipeline).
-    if args.metadata_cache_stats {
+    // inside the analysis pipeline). Skip if the cache was bypassed.
+    if args.metadata_cache_stats && !args.no_metadata_cache {
         let mc_dir = args
             .metadata_cache_dir
             .clone()
