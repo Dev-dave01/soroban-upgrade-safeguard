@@ -798,14 +798,19 @@ pub fn resolve(root: &Path, cli: &CliSettings) -> Result<ResolvedManifest> {
     // accidentally generated manifest with thousands of pairs is rejected as
     // a configuration error, not run until something else gives out.
     if walk.pairs.len() > cli.max_pairs {
+        let pair_word = if walk.pairs.len() == 1 { "pair" } else { "pairs" };
+        let max_word = if cli.max_pairs == 1 { "pair" } else { "pairs" };
         bail!(
-            "Manifest composition contains {} pairs, exceeding the maximum of {} (--max-pairs).\n  \
+            "Manifest composition contains {} {}, exceeding the maximum of {} {} (--max-pairs).\n  \
              root: {}\n\
-             Raise --max-pairs if this many pairs is intentional, or check for a manifest \
+             Raise --max-pairs if this many {} is intentional, or check for a manifest \
              generation mistake.",
             walk.pairs.len(),
+            pair_word,
             cli.max_pairs,
-            root.display()
+            max_word,
+            root.display(),
+            pair_word
         );
     }
 
@@ -2326,7 +2331,7 @@ mod tests {
             "got: {error}"
         );
         assert!(
-            error.contains(&format!("maximum of {DEFAULT_MAX_PAIRS}")),
+            error.contains(&format!("maximum of {DEFAULT_MAX_PAIRS} pairs")),
             "got: {error}"
         );
         assert!(error.contains("--max-pairs"), "got: {error}");
@@ -2345,8 +2350,8 @@ mod tests {
             ..CliSettings::default()
         };
         let error = format!("{:#}", resolve(&root, &cli).unwrap_err());
-        assert!(error.contains("1 pairs"), "got: {error}");
-        assert!(error.contains("maximum of 0"), "got: {error}");
+        assert!(error.contains("1 pair"), "got: {error}");
+        assert!(error.contains("maximum of 0 pairs"), "got: {error}");
         assert!(error.contains("--max-pairs"), "got: {error}");
     }
 
@@ -2386,7 +2391,32 @@ mod tests {
         };
         let error = format!("{:#}", resolve(&root, &cli).unwrap_err());
         assert!(error.contains("4 pairs"), "got: {error}");
-        assert!(error.contains("maximum of 3"), "got: {error}");
+        assert!(error.contains("maximum of 3 pairs"), "got: {error}");
+    }
+
+    #[test]
+    fn max_pairs_error_uses_correct_singular_and_plural_wording() {
+        // Test singular "1 pair" wording
+        let dir1 = temp_dir("max-pairs-singular");
+        let root1 = write(&dir1, "root.toml", &pairs_toml(1));
+        let cli1 = CliSettings {
+            max_pairs: 0,
+            ..CliSettings::default()
+        };
+        let error1 = format!("{:#}", resolve(&root1, &cli1).unwrap_err());
+        assert!(error1.contains("1 pair,"), "should use singular, got: {error1}");
+        assert!(!error1.contains("1 pairs"), "should not say '1 pairs', got: {error1}");
+        
+        // Test plural "2 pairs" wording
+        let dir2 = temp_dir("max-pairs-plural");
+        let root2 = write(&dir2, "root.toml", &pairs_toml(2));
+        let cli2 = CliSettings {
+            max_pairs: 1,
+            ..CliSettings::default()
+        };
+        let error2 = format!("{:#}", resolve(&root2, &cli2).unwrap_err());
+        assert!(error2.contains("2 pairs"), "should use plural, got: {error2}");
+        assert!(error2.contains("maximum of 1 pair"), "should use singular for max, got: {error2}");
     }
 
     #[test]
