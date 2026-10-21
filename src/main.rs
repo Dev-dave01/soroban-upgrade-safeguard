@@ -1380,6 +1380,11 @@ struct DoctorArgs {
     /// Do not color output.
     #[arg(long)]
     no_color: bool,
+
+    /// Destination path for the output. Defaults to stdout.
+    /// Written atomically (temp file + rename).
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// Output format for the `doctor` subcommand.
@@ -1745,7 +1750,7 @@ fn run_doctor(args: &DoctorArgs) -> Result<()> {
     let oci_cache_dir = oci::default_cache_dir();
     let metadata_cache_dir = soroban_upgrade_safeguard::metadata_cache::default_cache_dir();
 
-    match args.format {
+    let content = match args.format {
         DoctorFormat::Json => {
             let mut root = serde_json::Map::new();
 
@@ -1795,68 +1800,111 @@ fn run_doctor(args: &DoctorArgs) -> Result<()> {
                 serde_json::Value::Object(config),
             );
 
-            println!("{}", serde_json::to_string_pretty(&root)?);
+            serde_json::to_string_pretty(&root)?
         }
         DoctorFormat::Text => {
-            println!(
-                "{}",
-                "Soroban Upgrade Safeguard - Environment Report".bold()
-            );
-            println!();
+            render_doctor_text(
+                version,
+                &enabled_features,
+                &remote_cache_dir,
+                &oci_cache_dir,
+                &metadata_cache_dir,
+                &config_source,
+                &suppressions,
+            )
+        }
+    };
 
-            println!("{}", "Version:".bold());
-            println!("  {}", version);
-            println!();
+    write_doctor_output(args.output.as_deref(), &content)
+}
 
-            println!("{}", "Enabled Features:".bold());
-            if enabled_features.is_empty() {
-                println!("  (none)");
-            } else {
-                for feature in &enabled_features {
-                    println!("  {}", feature);
-                }
-            }
-            println!();
+/// Render the doctor diagnostic report as human-readable text.
+fn render_doctor_text(
+    version: &str,
+    enabled_features: &[&str],
+    remote_cache_dir: &Path,
+    oci_cache_dir: &Path,
+    metadata_cache_dir: &Path,
+    config_source: &Option<(PathBuf, config::ConfigSource)>,
+    suppressions: &config::Suppressions,
+) -> String {
+    let mut out = String::new();
 
-            println!("{}", "Cache Directories:".bold());
-            println!("  Remote (https://): {}", remote_cache_dir.display());
-            println!("  OCI (oci://):      {}", oci_cache_dir.display());
-            println!("  Metadata:          {}", metadata_cache_dir.display());
-            println!();
+    out.push_str(&format!(
+        "{}\n",
+        "Soroban Upgrade Safeguard - Environment Report".bold()
+    ));
+    out.push('\n');
 
-            println!("{}", "Configuration:".bold());
-            match &config_source {
-                Some((path, source)) => {
-                    println!("  Config file: {}", path.display());
-                    println!("  Source:      {}", source);
-                }
-                None => {
-                    println!("  Config file: (none found)");
-                    println!("  Source:      default");
-                }
-            }
-            println!("  Suppressions loaded: {}", suppressions.rules().len());
-            println!();
+    out.push_str(&format!("{}\n", "Version:".bold()));
+    out.push_str(&format!("  {}\n", version));
+    out.push('\n');
 
-            println!("{}", "Environment:".bold());
-            if let Some(val) = std::env::var_os(CONFIG_PATH_ENV_VAR) {
-                println!("  {}={}", CONFIG_PATH_ENV_VAR, val.to_string_lossy());
-            } else {
-                println!("  {} (not set)", CONFIG_PATH_ENV_VAR);
-            }
-            if let Some(val) = std::env::var_os(remote::CACHE_DIR_ENV_VAR) {
-                println!("  {}={}", remote::CACHE_DIR_ENV_VAR, val.to_string_lossy());
-            }
-            if let Some(val) = std::env::var_os(oci::CACHE_DIR_ENV_VAR) {
-                println!("  {}={}", oci::CACHE_DIR_ENV_VAR, val.to_string_lossy());
-            }
-            if let Some(val) = std::env::var_os("NO_COLOR") {
-                println!("  NO_COLOR={}", val.to_string_lossy());
-            }
+    out.push_str(&format!("{}\n", "Enabled Features:".bold()));
+    if enabled_features.is_empty() {
+        out.push_str("  (none)\n");
+    } else {
+        for feature in enabled_features {
+            out.push_str(&format!("  {}\n", feature));
         }
     }
+    out.push('\n');
 
-    Ok(())
+    out.push_str(&format!("{}\n", "Cache Directories:".bold()));
+    out.push_str(&format!("  Remote (https://): {}\n", remote_cache_dir.display()));
+    out.push_str(&format!("  OCI (oci://):      {}\n", oci_cache_dir.display()));
+    out.push_str(&format!("  Metadata:          {}\n", metadata_cache_dir.display()));
+    out.push('\n');
+
+    out.push_str(&format!("{}\n", "Configuration:".bold()));
+    match config_source {
+        Some((path, source)) => {
+            out.push_str(&format!("  Config file: {}\n", path.display()));
+            out.push_str(&format!("  Source:      {}\n", source));
+        }
+        None => {
+            out.push_str("  Config file: (none found)\n");
+            out.push_str("  Source:      default\n");
+        }
+    }
+    out.push_str(&format!("  Suppressions loaded: {}\n", suppressions.rules().len()));
+    out.push('\n');
+
+    out.push_str(&format!("{}\n", "Environment:".bold()));
+    if let Some(val) = std::env::var_os(CONFIG_PATH_ENV_VAR) {
+        out.push_str(&format!("  {}={}\n", CONFIG_PATH_ENV_VAR, val.to_string_lossy()));
+    } else {
+        out.push_str(&format!("  {} (not set)\n", CONFIG_PATH_ENV_VAR));
+    }
+    if let Some(val) = std::env::var_os(remote::CACHE_DIR_ENV_VAR) {
+        out.push_str(&format!("  {}={}\n", remote::CACHE_DIR_ENV_VAR, val.to_string_lossy()));
+    }
+    if let Some(val) = std::env::var_os(oci::CACHE_DIR_ENV_VAR) {
+        out.push_str(&format!("  {}={}\n", oci::CACHE_DIR_ENV_VAR, val.to_string_lossy()));
+    }
+    if let Some(val) = std::env::var_os("NO_COLOR") {
+        out.push_str(&format!("  NO_COLOR={}\n", val.to_string_lossy()));
+    }
+
+    out
+}
+
+/// Print `content` to stdout, or write it atomically to `path` when given.
+/// Uses the same atomic-write (temp file + rename) pattern as extract,
+/// categories, and preflight output. `content` gets exactly one trailing newline.
+fn write_doctor_output(path: Option<&Path>, content: &str) -> Result<()> {
+    match path {
+        Some(path) => {
+            let mut formatted = content.trim_end_matches('\n').to_string();
+            formatted.push('\n');
+            write_atomically(path, formatted.as_bytes())
+                .with_context(|| format!("Failed to write output file '{}'.", path.display()))
+        }
+        None => {
+            print!("{content}");
+            Ok(())
+        }
+    }
 }
 
 fn markdown_table_cell(text: &str) -> String {
