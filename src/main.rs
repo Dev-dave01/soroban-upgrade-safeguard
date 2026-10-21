@@ -1307,6 +1307,12 @@ struct PreflightArgs {
     /// Do not color output
     #[arg(long)]
     no_color: bool,
+
+    /// Destination path for the preflight output. Defaults to stdout.
+    /// Written atomically (temp file + rename) and always overwrites an
+    /// existing file at this path.
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// Output format for the `categories` listing.
@@ -1340,6 +1346,11 @@ struct CategoriesArgs {
     /// Do not color output.
     #[arg(long)]
     no_color: bool,
+
+    /// Destination path for the output. Defaults to stdout.
+    /// Written atomically (temp file + rename).
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// `doctor`: report environment, version, enabled features, cache locations,
@@ -1369,6 +1380,11 @@ struct DoctorArgs {
     /// Do not color output.
     #[arg(long)]
     no_color: bool,
+
+    /// Destination path for the output. Defaults to stdout.
+    /// Written atomically (temp file + rename).
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// Output format for the `doctor` subcommand.
@@ -1549,6 +1565,24 @@ fn write_extract_output(path: Option<&Path>, content: &str) -> Result<()> {
     }
 }
 
+/// Print `content` to stdout, or write it atomically to `path` when given.
+/// Uses the same atomic-write (temp file + rename) pattern as extract and
+/// comparison report output. `content` gets exactly one trailing newline.
+fn write_categories_output(path: Option<&Path>, content: &str) -> Result<()> {
+    match path {
+        Some(path) => {
+            let mut formatted = content.trim_end_matches('\n').to_string();
+            formatted.push('\n');
+            write_atomically(path, formatted.as_bytes())
+                .with_context(|| format!("Failed to write output file '{}'.", path.display()))
+        }
+        None => {
+            print!("{content}");
+            Ok(())
+        }
+    }
+}
+
 /// Validate RPC connectivity and JSON-RPC protocol shape without fetching
 /// any contract code. See [`preflight::run_preflight_with_timeout`] for the
 /// exact checks performed.
@@ -1566,62 +1600,14 @@ fn run_preflight(args: &PreflightArgs) -> Result<()> {
     let report =
         preflight::run_preflight_with_timeout(&config, Duration::from_secs(args.timeout_secs));
 
-    if args.format == OutputFormat::Json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    let content = if args.format == OutputFormat::Json {
+        serde_json::to_string_pretty(&report)?
     } else {
-        println!("Preflight check: {}", report.rpc_endpoint);
-        println!();
+        render_preflight_text(&report)
+    };
 
-        let transport_detail = if report.transport.success {
-            Some(format!(
-                "HTTP {}",
-                report.transport.status_code.unwrap_or_default()
-            ))
-        } else {
-            report.transport.error.clone()
-        };
-        print_preflight_line("Transport", report.transport.success, transport_detail);
+    write_preflight_output(args.output.as_deref(), &content)?;
 
-        let protocol_detail = if report.protocol.success {
-            Some(format!(
-                "jsonrpc {}, id matches",
-                report.protocol.jsonrpc_version.as_deref().unwrap_or("?")
-            ))
-        } else {
-            report.protocol.error.clone()
-        };
-        print_preflight_line("Protocol", report.protocol.success, protocol_detail);
-
-        let capability_detail = if report.capability.success {
-            Some(match report.capability.latest_ledger {
-                Some(seq) => format!(
-                    "{} succeeded (latestLedger {seq})",
-                    report.capability.method
-                ),
-                None => format!("{} succeeded", report.capability.method),
-            })
-        } else {
-            report.capability.error.clone()
-        };
-        print_preflight_line("Capability", report.capability.success, capability_detail);
-
-        println!();
-        println!(
-            "Overall: {}",
-            if report.all_passed() {
-                "PASS".green().bold()
-            } else {
-                "FAIL".red().bold()
-            }
-        );
-        println!();
-        println!(
-            "Note: a passing preflight check confirms endpoint connectivity only. \
-             It does not verify that any specific contract or network is compatible."
-        );
-    }
-
-    std::io::stdout().flush().ok();
     if !report.all_passed() {
         std::process::exit(1);
     }
@@ -1707,7 +1693,7 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
         })
         .collect();
 
-    match args.format {
+    let content = match args.format {
         CategoriesFormat::Json => {
             let entries: Vec<serde_json::Value> = categories
                 .iter()
@@ -1720,12 +1706,13 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
                     })
                 })
                 .collect();
-            println!("{}", serde_json::to_string_pretty(&entries)?);
+            serde_json::to_string_pretty(&entries)?
         }
-        CategoriesFormat::Text => print!("{}", render_categories_text(&categories)),
-        CategoriesFormat::Markdown => print!("{}", render_categories_markdown(&categories)),
-    }
-    Ok(())
+        CategoriesFormat::Text => render_categories_text(&categories),
+        CategoriesFormat::Markdown => render_categories_markdown(&categories),
+    };
+
+    write_categories_output(args.output.as_deref(), &content)
 }
 
 /// `doctor`: report environment, version, enabled features, cache locations,
@@ -1763,7 +1750,7 @@ fn run_doctor(args: &DoctorArgs) -> Result<()> {
     let oci_cache_dir = oci::default_cache_dir();
     let metadata_cache_dir = soroban_upgrade_safeguard::metadata_cache::default_cache_dir();
 
-    match args.format {
+    let content = match args.format {
         DoctorFormat::Json => {
             let mut root = serde_json::Map::new();
 
@@ -1813,68 +1800,111 @@ fn run_doctor(args: &DoctorArgs) -> Result<()> {
                 serde_json::Value::Object(config),
             );
 
-            println!("{}", serde_json::to_string_pretty(&root)?);
+            serde_json::to_string_pretty(&root)?
         }
         DoctorFormat::Text => {
-            println!(
-                "{}",
-                "Soroban Upgrade Safeguard - Environment Report".bold()
-            );
-            println!();
+            render_doctor_text(
+                version,
+                &enabled_features,
+                &remote_cache_dir,
+                &oci_cache_dir,
+                &metadata_cache_dir,
+                &config_source,
+                &suppressions,
+            )
+        }
+    };
 
-            println!("{}", "Version:".bold());
-            println!("  {}", version);
-            println!();
+    write_doctor_output(args.output.as_deref(), &content)
+}
 
-            println!("{}", "Enabled Features:".bold());
-            if enabled_features.is_empty() {
-                println!("  (none)");
-            } else {
-                for feature in &enabled_features {
-                    println!("  {}", feature);
-                }
-            }
-            println!();
+/// Render the doctor diagnostic report as human-readable text.
+fn render_doctor_text(
+    version: &str,
+    enabled_features: &[&str],
+    remote_cache_dir: &Path,
+    oci_cache_dir: &Path,
+    metadata_cache_dir: &Path,
+    config_source: &Option<(PathBuf, config::ConfigSource)>,
+    suppressions: &config::Suppressions,
+) -> String {
+    let mut out = String::new();
 
-            println!("{}", "Cache Directories:".bold());
-            println!("  Remote (https://): {}", remote_cache_dir.display());
-            println!("  OCI (oci://):      {}", oci_cache_dir.display());
-            println!("  Metadata:          {}", metadata_cache_dir.display());
-            println!();
+    out.push_str(&format!(
+        "{}\n",
+        "Soroban Upgrade Safeguard - Environment Report".bold()
+    ));
+    out.push('\n');
 
-            println!("{}", "Configuration:".bold());
-            match &config_source {
-                Some((path, source)) => {
-                    println!("  Config file: {}", path.display());
-                    println!("  Source:      {}", source);
-                }
-                None => {
-                    println!("  Config file: (none found)");
-                    println!("  Source:      default");
-                }
-            }
-            println!("  Suppressions loaded: {}", suppressions.rules().len());
-            println!();
+    out.push_str(&format!("{}\n", "Version:".bold()));
+    out.push_str(&format!("  {}\n", version));
+    out.push('\n');
 
-            println!("{}", "Environment:".bold());
-            if let Some(val) = std::env::var_os(CONFIG_PATH_ENV_VAR) {
-                println!("  {}={}", CONFIG_PATH_ENV_VAR, val.to_string_lossy());
-            } else {
-                println!("  {} (not set)", CONFIG_PATH_ENV_VAR);
-            }
-            if let Some(val) = std::env::var_os(remote::CACHE_DIR_ENV_VAR) {
-                println!("  {}={}", remote::CACHE_DIR_ENV_VAR, val.to_string_lossy());
-            }
-            if let Some(val) = std::env::var_os(oci::CACHE_DIR_ENV_VAR) {
-                println!("  {}={}", oci::CACHE_DIR_ENV_VAR, val.to_string_lossy());
-            }
-            if let Some(val) = std::env::var_os("NO_COLOR") {
-                println!("  NO_COLOR={}", val.to_string_lossy());
-            }
+    out.push_str(&format!("{}\n", "Enabled Features:".bold()));
+    if enabled_features.is_empty() {
+        out.push_str("  (none)\n");
+    } else {
+        for feature in enabled_features {
+            out.push_str(&format!("  {}\n", feature));
         }
     }
+    out.push('\n');
 
-    Ok(())
+    out.push_str(&format!("{}\n", "Cache Directories:".bold()));
+    out.push_str(&format!("  Remote (https://): {}\n", remote_cache_dir.display()));
+    out.push_str(&format!("  OCI (oci://):      {}\n", oci_cache_dir.display()));
+    out.push_str(&format!("  Metadata:          {}\n", metadata_cache_dir.display()));
+    out.push('\n');
+
+    out.push_str(&format!("{}\n", "Configuration:".bold()));
+    match config_source {
+        Some((path, source)) => {
+            out.push_str(&format!("  Config file: {}\n", path.display()));
+            out.push_str(&format!("  Source:      {}\n", source));
+        }
+        None => {
+            out.push_str("  Config file: (none found)\n");
+            out.push_str("  Source:      default\n");
+        }
+    }
+    out.push_str(&format!("  Suppressions loaded: {}\n", suppressions.rules().len()));
+    out.push('\n');
+
+    out.push_str(&format!("{}\n", "Environment:".bold()));
+    if let Some(val) = std::env::var_os(CONFIG_PATH_ENV_VAR) {
+        out.push_str(&format!("  {}={}\n", CONFIG_PATH_ENV_VAR, val.to_string_lossy()));
+    } else {
+        out.push_str(&format!("  {} (not set)\n", CONFIG_PATH_ENV_VAR));
+    }
+    if let Some(val) = std::env::var_os(remote::CACHE_DIR_ENV_VAR) {
+        out.push_str(&format!("  {}={}\n", remote::CACHE_DIR_ENV_VAR, val.to_string_lossy()));
+    }
+    if let Some(val) = std::env::var_os(oci::CACHE_DIR_ENV_VAR) {
+        out.push_str(&format!("  {}={}\n", oci::CACHE_DIR_ENV_VAR, val.to_string_lossy()));
+    }
+    if let Some(val) = std::env::var_os("NO_COLOR") {
+        out.push_str(&format!("  NO_COLOR={}\n", val.to_string_lossy()));
+    }
+
+    out
+}
+
+/// Print `content` to stdout, or write it atomically to `path` when given.
+/// Uses the same atomic-write (temp file + rename) pattern as extract,
+/// categories, and preflight output. `content` gets exactly one trailing newline.
+fn write_doctor_output(path: Option<&Path>, content: &str) -> Result<()> {
+    match path {
+        Some(path) => {
+            let mut formatted = content.trim_end_matches('\n').to_string();
+            formatted.push('\n');
+            write_atomically(path, formatted.as_bytes())
+                .with_context(|| format!("Failed to write output file '{}'.", path.display()))
+        }
+        None => {
+            print!("{content}");
+            Ok(())
+        }
+    }
 }
 
 fn markdown_table_cell(text: &str) -> String {
@@ -1943,6 +1973,94 @@ fn print_preflight_line(label: &str, success: bool, detail: Option<String>) {
     match detail {
         Some(detail) => println!("{label:<12}{status}  {detail}"),
         None => println!("{label:<12}{status}"),
+    }
+}
+
+/// Render the preflight report as human-readable text.
+fn render_preflight_text(report: &preflight::PreflightReport) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("Preflight check: {}\n", report.rpc_endpoint));
+    out.push('\n');
+
+    let transport_detail = if report.transport.success {
+        Some(format!(
+            "HTTP {}",
+            report.transport.status_code.unwrap_or_default()
+        ))
+    } else {
+        report.transport.error.clone()
+    };
+    append_preflight_line(&mut out, "Transport", report.transport.success, transport_detail);
+
+    let protocol_detail = if report.protocol.success {
+        Some(format!(
+            "jsonrpc {}, id matches",
+            report.protocol.jsonrpc_version.as_deref().unwrap_or("?")
+        ))
+    } else {
+        report.protocol.error.clone()
+    };
+    append_preflight_line(&mut out, "Protocol", report.protocol.success, protocol_detail);
+
+    let capability_detail = if report.capability.success {
+        Some(match report.capability.latest_ledger {
+            Some(seq) => format!(
+                "{} succeeded (latestLedger {seq})",
+                report.capability.method
+            ),
+            None => format!("{} succeeded", report.capability.method),
+        })
+    } else {
+        report.capability.error.clone()
+    };
+    append_preflight_line(&mut out, "Capability", report.capability.success, capability_detail);
+
+    out.push('\n');
+    out.push_str(&format!(
+        "Overall: {}\n",
+        if report.all_passed() {
+            "PASS".green().bold()
+        } else {
+            "FAIL".red().bold()
+        }
+    ));
+    out.push('\n');
+    out.push_str(
+        "Note: a passing preflight check confirms endpoint connectivity only. \
+         It does not verify that any specific contract or network is compatible.\n",
+    );
+    out
+}
+
+/// Append a preflight check line to a string buffer.
+fn append_preflight_line(out: &mut String, label: &str, success: bool, detail: Option<String>) {
+    let status = if success {
+        "PASS".green()
+    } else {
+        "FAIL".red()
+    };
+    match detail {
+        Some(detail) => out.push_str(&format!("{label:<12}{status}  {detail}\n")),
+        None => out.push_str(&format!("{label:<12}{status}\n")),
+    }
+}
+
+/// Print `content` to stdout, or write it atomically to `path` when given.
+/// Uses the same atomic-write (temp file + rename) pattern as extract and
+/// categories output. `content` gets exactly one trailing newline.
+fn write_preflight_output(path: Option<&Path>, content: &str) -> Result<()> {
+    match path {
+        Some(path) => {
+            let mut formatted = content.trim_end_matches('\n').to_string();
+            formatted.push('\n');
+            write_atomically(path, formatted.as_bytes())
+                .with_context(|| format!("Failed to write output file '{}'.", path.display()))
+        }
+        None => {
+            print!("{content}");
+            std::io::stdout().flush().ok();
+            Ok(())
+        }
     }
 }
 
