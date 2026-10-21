@@ -1455,6 +1455,12 @@ struct PrintSchemaArgs {
     /// Shorthand to output Markdown documentation (`--format markdown`).
     #[arg(long)]
     markdown: bool,
+
+    /// Destination path for the schema output. Defaults to stdout.
+    /// Written atomically (temp file + rename) and always overwrites an
+    /// existing file at this path.
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// `allow_http_local` is only ever `true` at call sites built from the
@@ -2086,134 +2092,98 @@ fn run_print_schema(args: &PrintSchemaArgs) -> Result<()> {
         args.format
     };
 
-    let stdout = std::io::stdout();
-    let mut handle = stdout.lock();
-
-    match (target, format) {
+    let content = match (target, format) {
         (SchemaTarget::Report, PrintSchemaFormat::Markdown) => {
-            let md = "# Report JSON Schema\n\nRun `print-schema` without flags to print the Draft-07 JSON Schema.\n";
-            handle
-                .write_all(md.as_bytes())
-                .context("writing markdown schema to stdout")?;
+            "# Report JSON Schema\n\nRun `print-schema` without flags to print the Draft-07 JSON Schema.\n".to_string()
         }
         (SchemaTarget::Report, _) => {
             let value = report_schema::report_schema_value();
             if args.compact {
-                let bytes =
-                    serde_json::to_vec(&value).context("serializing report schema to JSON")?;
-                handle
-                    .write_all(&bytes)
-                    .context("writing JSON schema to stdout")?;
+                serde_json::to_string(&value).context("serializing report schema to JSON")?
             } else {
-                let pretty = serde_json::to_string_pretty(&value)
-                    .context("serializing report schema to JSON")?;
-                handle
-                    .write_all(pretty.as_bytes())
-                    .context("writing JSON schema to stdout")?;
+                serde_json::to_string_pretty(&value)
+                    .context("serializing report schema to JSON")?
             }
         }
         (SchemaTarget::Config, PrintSchemaFormat::JsonSchema) => {
             let schema = soroban_upgrade_safeguard::config_schema::config_schema();
             if args.compact {
-                let bytes =
-                    serde_json::to_vec(&schema).context("serializing config schema to JSON")?;
-                handle
-                    .write_all(&bytes)
-                    .context("writing JSON schema to stdout")?;
+                serde_json::to_string(&schema).context("serializing config schema to JSON")?
             } else {
-                let pretty = serde_json::to_string_pretty(&schema)
-                    .context("serializing config schema to JSON")?;
-                handle
-                    .write_all(pretty.as_bytes())
-                    .context("writing JSON schema to stdout")?;
+                serde_json::to_string_pretty(&schema)
+                    .context("serializing config schema to JSON")?
             }
         }
         (SchemaTarget::Config, PrintSchemaFormat::Completion) => {
             let catalog = soroban_upgrade_safeguard::config_schema::generate_config_completion();
             if args.compact {
-                let bytes = serde_json::to_vec(&catalog)
-                    .context("serializing config completion to JSON")?;
-                handle
-                    .write_all(&bytes)
-                    .context("writing completion catalog to stdout")?;
+                serde_json::to_string(&catalog)
+                    .context("serializing config completion to JSON")?
             } else {
-                let pretty = serde_json::to_string_pretty(&catalog)
-                    .context("serializing config completion to JSON")?;
-                handle
-                    .write_all(pretty.as_bytes())
-                    .context("writing completion catalog to stdout")?;
+                serde_json::to_string_pretty(&catalog)
+                    .context("serializing config completion to JSON")?
             }
         }
         (SchemaTarget::Config, PrintSchemaFormat::Markdown) => {
-            let md = soroban_upgrade_safeguard::config_schema::generate_config_markdown();
-            handle
-                .write_all(md.as_bytes())
-                .context("writing config markdown to stdout")?;
+            soroban_upgrade_safeguard::config_schema::generate_config_markdown()
         }
         (SchemaTarget::Manifest, PrintSchemaFormat::JsonSchema) => {
             let schema = soroban_upgrade_safeguard::config_schema::manifest_schema();
             if args.compact {
-                let bytes =
-                    serde_json::to_vec(&schema).context("serializing manifest schema to JSON")?;
-                handle
-                    .write_all(&bytes)
-                    .context("writing JSON schema to stdout")?;
+                serde_json::to_string(&schema).context("serializing manifest schema to JSON")?
             } else {
-                let pretty = serde_json::to_string_pretty(&schema)
-                    .context("serializing manifest schema to JSON")?;
-                handle
-                    .write_all(pretty.as_bytes())
-                    .context("writing JSON schema to stdout")?;
+                serde_json::to_string_pretty(&schema)
+                    .context("serializing manifest schema to JSON")?
             }
         }
         (SchemaTarget::Manifest, PrintSchemaFormat::Completion) => {
             let catalog = soroban_upgrade_safeguard::config_schema::generate_manifest_completion();
             if args.compact {
-                let bytes = serde_json::to_vec(&catalog)
-                    .context("serializing manifest completion to JSON")?;
-                handle
-                    .write_all(&bytes)
-                    .context("writing completion catalog to stdout")?;
+                serde_json::to_string(&catalog)
+                    .context("serializing manifest completion to JSON")?
             } else {
-                let pretty = serde_json::to_string_pretty(&catalog)
-                    .context("serializing manifest completion to JSON")?;
-                handle
-                    .write_all(pretty.as_bytes())
-                    .context("writing completion catalog to stdout")?;
+                serde_json::to_string_pretty(&catalog)
+                    .context("serializing manifest completion to JSON")?
             }
         }
         (SchemaTarget::Manifest, PrintSchemaFormat::Markdown) => {
-            let md = soroban_upgrade_safeguard::config_schema::generate_manifest_markdown();
-            handle
-                .write_all(md.as_bytes())
-                .context("writing manifest markdown to stdout")?;
+            soroban_upgrade_safeguard::config_schema::generate_manifest_markdown()
         }
         (SchemaTarget::ImpactGraph, PrintSchemaFormat::Markdown) => {
-            let md = "# Impact Graph JSON Schema\n\nRun `print-schema --target impact-graph` without `--markdown` to print the Draft-07 JSON Schema. See docs/impact-graph.md for the node/edge kind reference.\n";
-            handle
-                .write_all(md.as_bytes())
-                .context("writing markdown schema to stdout")?;
+            "# Impact Graph JSON Schema\n\nRun `print-schema --target impact-graph` without `--markdown` to print the Draft-07 JSON Schema. See docs/impact-graph.md for the node/edge kind reference.\n".to_string()
         }
         (SchemaTarget::ImpactGraph, _) => {
             let value = report_schema::impact_graph_schema_value();
             if args.compact {
-                let bytes = serde_json::to_vec(&value)
-                    .context("serializing impact graph schema to JSON")?;
-                handle
-                    .write_all(&bytes)
-                    .context("writing JSON schema to stdout")?;
+                serde_json::to_string(&value)
+                    .context("serializing impact graph schema to JSON")?
             } else {
-                let pretty = serde_json::to_string_pretty(&value)
-                    .context("serializing impact graph schema to JSON")?;
-                handle
-                    .write_all(pretty.as_bytes())
-                    .context("writing JSON schema to stdout")?;
+                serde_json::to_string_pretty(&value)
+                    .context("serializing impact graph schema to JSON")?
             }
         }
+    };
+
+    write_print_schema_output(args.output.as_deref(), &content)
+}
+
+/// Write print-schema output to stdout or to a file atomically.
+fn write_print_schema_output(path: Option<&Path>, content: &str) -> Result<()> {
+    match path {
+        Some(path) => {
+            let mut formatted = content.trim_end_matches('\n').to_string();
+            formatted.push('\n');
+            write_atomically(path, formatted.as_bytes())
+                .with_context(|| format!("Failed to write output file '{}'.", path.display()))
+        }
+        None => {
+            print!("{content}");
+            if !content.ends_with('\n') {
+                println!();
+            }
+            Ok(())
+        }
     }
-    handle.write_all(b"\n").ok();
-    handle.flush().ok();
-    Ok(())
 }
 
 /// Extract one build and write its exported interface as a lockfile.
