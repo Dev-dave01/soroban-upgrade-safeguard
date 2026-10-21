@@ -80,6 +80,8 @@ pub struct MigrationRecord {
 /// Errors from upgrading a saved report to the latest schema.
 #[derive(Debug)]
 pub enum MigrationError {
+    /// The input was empty or contained only whitespace.
+    EmptyInput,
     /// The bytes were not valid JSON, or the (possibly migrated) document
     /// does not match any known report shape.
     Malformed(serde_json::Error),
@@ -101,6 +103,10 @@ pub enum MigrationError {
 impl std::fmt::Display for MigrationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            MigrationError::EmptyInput => write!(
+                f,
+                "upgrade-report input is empty or whitespace-only. Expected a saved JSON report produced by `--format json`."
+            ),
             MigrationError::Malformed(err) => write!(
                 f,
                 "not a valid Soroban Upgrade Safeguard JSON report: {err}. \
@@ -220,6 +226,11 @@ fn declared_version(value: &Value) -> Result<u32, MigrationError> {
 pub fn upgrade_to_latest(
     json: &str,
 ) -> Result<(RenderableReport, MigrationRecord), MigrationError> {
+    // Check for empty or whitespace-only input first, before attempting to parse.
+    if json.trim().is_empty() {
+        return Err(MigrationError::EmptyInput);
+    }
+
     let mut value: Value = serde_json::from_str(json).map_err(MigrationError::Malformed)?;
 
     let original_version = declared_version(&value)?;
