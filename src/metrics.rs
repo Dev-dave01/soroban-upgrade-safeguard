@@ -104,19 +104,6 @@ pub enum InputSourceLabel {
     Stdin,
 }
 
-impl InputSourceLabel {
-    #[allow(dead_code)]
-    fn as_str(self) -> &'static str {
-        match self {
-            InputSourceLabel::LocalFile => "local_file",
-            InputSourceLabel::RemoteHttps => "remote_https",
-            InputSourceLabel::Oci => "oci",
-            InputSourceLabel::Rpc => "rpc",
-            InputSourceLabel::Stdin => "stdin",
-        }
-    }
-}
-
 /// Controlled cache-result label values (closed enumeration).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CacheResultLabel {
@@ -207,17 +194,6 @@ pub enum VerdictLabel {
     Safe,
     Unsafe,
     Error,
-}
-
-impl VerdictLabel {
-    #[allow(dead_code)]
-    fn as_str(self) -> &'static str {
-        match self {
-            VerdictLabel::Safe => "safe",
-            VerdictLabel::Unsafe => "unsafe",
-            VerdictLabel::Error => "error",
-        }
-    }
 }
 
 /// A simple counter backed by an atomic u64.
@@ -970,22 +946,6 @@ mod tests {
         assert!(content.contains("soroban_safeguard_pairs_total"));
         assert!(content.ends_with("# EOF\n"));
         fs::remove_file(&path).ok();
-    }
-
-    #[test]
-    fn verdict_label_as_str() {
-        assert_eq!(VerdictLabel::Safe.as_str(), "safe");
-        assert_eq!(VerdictLabel::Unsafe.as_str(), "unsafe");
-        assert_eq!(VerdictLabel::Error.as_str(), "error");
-    }
-
-    #[test]
-    fn input_source_label_as_str() {
-        assert_eq!(InputSourceLabel::LocalFile.as_str(), "local_file");
-        assert_eq!(InputSourceLabel::RemoteHttps.as_str(), "remote_https");
-        assert_eq!(InputSourceLabel::Oci.as_str(), "oci");
-        assert_eq!(InputSourceLabel::Rpc.as_str(), "rpc");
-        assert_eq!(InputSourceLabel::Stdin.as_str(), "stdin");
     }
 
     #[test]

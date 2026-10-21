@@ -212,6 +212,13 @@ The default validation mode that compares the declared types and interfaces in c
 
 **See also:** [What a Passing Verdict Guarantees](documentation.md#what-a-passing-verdict-guarantees)
 
+### Decoder Registry
+The registry that selects a build's contract-spec decoder using the interface version recorded in its `contractenvmetav0` WASM custom section.
+
+**Use with:** `soroban-upgrade-safeguard extract <WASM>`
+
+**See also:** [Protocol-Versioned Contract-Spec Decoder Registry](decoder_registry.md)
+
 ### Empirical Validation
 Advanced validation mode that decodes real ledger storage entries against the new contract spec. This catches breaks in actual deployed data that structural analysis might miss.
 
@@ -237,6 +244,13 @@ A structural break flagged by analysis, but empirical validation found that all 
 A structural break flagged by analysis, but no matching storage data was found in the empirical sample to test. Status is unknown for actual deployed data.
 
 ## Input Sources
+
+### Batch Manifest
+A TOML or JSON file that lists the baseline and candidate contract pairs one run compares.
+
+**Use with:** `soroban-upgrade-safeguard --manifest release.toml`
+
+**See also:** [Batch Manifests](batch_manifests.md)
 
 ### RPC Baseline
 A baseline contract fetched directly from the network using `--contract-id` and `--rpc-url`. The tool retrieves and hash-verifies the on-chain WASM before comparison.
