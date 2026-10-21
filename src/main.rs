@@ -1340,6 +1340,11 @@ struct CategoriesArgs {
     /// Do not color output.
     #[arg(long)]
     no_color: bool,
+
+    /// Destination path for the output. Defaults to stdout.
+    /// Written atomically (temp file + rename).
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// `doctor`: report environment, version, enabled features, cache locations,
@@ -1549,6 +1554,24 @@ fn write_extract_output(path: Option<&Path>, content: &str) -> Result<()> {
     }
 }
 
+/// Print `content` to stdout, or write it atomically to `path` when given.
+/// Uses the same atomic-write (temp file + rename) pattern as extract and
+/// comparison report output. `content` gets exactly one trailing newline.
+fn write_categories_output(path: Option<&Path>, content: &str) -> Result<()> {
+    match path {
+        Some(path) => {
+            let mut formatted = content.trim_end_matches('\n').to_string();
+            formatted.push('\n');
+            write_atomically(path, formatted.as_bytes())
+                .with_context(|| format!("Failed to write output file '{}'.", path.display()))
+        }
+        None => {
+            print!("{content}");
+            Ok(())
+        }
+    }
+}
+
 /// Validate RPC connectivity and JSON-RPC protocol shape without fetching
 /// any contract code. See [`preflight::run_preflight_with_timeout`] for the
 /// exact checks performed.
@@ -1707,7 +1730,7 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
         })
         .collect();
 
-    match args.format {
+    let content = match args.format {
         CategoriesFormat::Json => {
             let entries: Vec<serde_json::Value> = categories
                 .iter()
@@ -1720,12 +1743,13 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
                     })
                 })
                 .collect();
-            println!("{}", serde_json::to_string_pretty(&entries)?);
+            serde_json::to_string_pretty(&entries)?
         }
-        CategoriesFormat::Text => print!("{}", render_categories_text(&categories)),
-        CategoriesFormat::Markdown => print!("{}", render_categories_markdown(&categories)),
-    }
-    Ok(())
+        CategoriesFormat::Text => render_categories_text(&categories),
+        CategoriesFormat::Markdown => render_categories_markdown(&categories),
+    };
+
+    write_categories_output(args.output.as_deref(), &content)
 }
 
 /// `doctor`: report environment, version, enabled features, cache locations,
