@@ -4455,17 +4455,29 @@ fn render_batch_summary(
                     } else {
                         format!(" {{{}}}", format_labels(result.labels(), ""))
                     };
+                    
+                    let critical_count = report.critical_count();
+                    let warning_count = report.warning_count();
+                    let info_count = report.info_count();
+                    let migrated_count = report.migrated_count();
+                    let suppressed_count = report.suppressed_count();
+                    
                     text.push_str(&format!(
-                        "  - {}: {} [{}; {}] ({} critical, {} warnings, {} info, {} migrated, {} suppressed){}\n",
+                        "  - {}: {} [{}; {}] ({} {}, {} {}, {} {}, {} {}, {} {}){}\n",
                         result.name().bold(),
                         status_str,
                         report.scope().summary_line(),
                         result.coverage(),
-                        report.critical_count(),
-                        report.warning_count(),
-                        report.info_count(),
-                        report.migrated_count(),
-                        report.suppressed_count(),
+                        critical_count,
+                        if critical_count == 1 { "critical" } else { "critical" },
+                        warning_count,
+                        if warning_count == 1 { "warning" } else { "warnings" },
+                        info_count,
+                        if info_count == 1 { "info" } else { "info" },
+                        migrated_count,
+                        if migrated_count == 1 { "migrated" } else { "migrated" },
+                        suppressed_count,
+                        if suppressed_count == 1 { "suppressed" } else { "suppressed" },
                         labels_suffix
                     ));
                 }
