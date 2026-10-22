@@ -14,11 +14,7 @@ fn stream_help() -> String {
         .arg("--help")
         .output()
         .expect("failed to run binary");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stream --help must exit 0"
-    );
+    assert_eq!(output.status.code(), Some(0), "stream --help must exit 0");
     String::from_utf8(output.stdout).expect("stdout was not valid UTF-8")
 }
 

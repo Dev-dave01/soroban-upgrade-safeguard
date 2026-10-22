@@ -501,8 +501,7 @@ fn extract_compact_produces_single_line_json() {
     );
 
     // Must still be valid JSON.
-    let parsed: Value =
-        serde_json::from_str(line).expect("--compact output must be valid JSON");
+    let parsed: Value = serde_json::from_str(line).expect("--compact output must be valid JSON");
     assert_eq!(parsed["spec_schema_version"], 1);
 }
 

@@ -31,7 +31,10 @@ fn assert_rejected_without_store(flag: &str, value: &str) {
     let new = wasm("v2.wasm");
     let (code, stdout, stderr) = run(&[&old, &new, flag, value]);
 
-    assert_eq!(code, 2, "{flag} without --lineage-store must exit 2: {stderr}");
+    assert_eq!(
+        code, 2,
+        "{flag} without --lineage-store must exit 2: {stderr}"
+    );
     assert!(
         stderr.contains("--lineage-store"),
         "error must name --lineage-store: {stderr}"
@@ -77,7 +80,10 @@ fn max_live_versions_with_lineage_store_is_still_accepted() {
         "--quiet",
     ]);
 
-    assert_ne!(code, 2, "flag with --lineage-store must not be a usage error: {stderr}");
+    assert_ne!(
+        code, 2,
+        "flag with --lineage-store must not be a usage error: {stderr}"
+    );
     let _ = std::fs::remove_file(&store_path);
 }
 
@@ -101,6 +107,9 @@ fn record_version_with_lineage_store_is_still_accepted() {
         "--quiet",
     ]);
 
-    assert_ne!(code, 2, "flag with --lineage-store must not be a usage error: {stderr}");
+    assert_ne!(
+        code, 2,
+        "flag with --lineage-store must not be a usage error: {stderr}"
+    );
     let _ = std::fs::remove_file(&store_path);
 }
