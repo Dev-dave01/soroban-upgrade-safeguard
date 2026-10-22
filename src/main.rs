@@ -2761,7 +2761,9 @@ fn run_render(args: &RenderArgs) -> Result<()> {
         RenderFormat::GithubActions => {
             // Disable color: annotations must not contain ANSI escape codes.
             colored::control::set_override(false);
-            report.to_github_actions()
+            // The trailing newline matches what the live comparison prints,
+            // so a re-rendered report is byte-identical to the original run.
+            format!("{}\n", report.to_github_actions())
         }
     };
 
@@ -4542,7 +4544,7 @@ fn render_batch_summary(
                 for result in results {
                     output.push_str(&format!("::group::{}\n", result.name()));
                     let report = result.report();
-                    output.push_str(&render_github_actions(report));
+                    output.push_str(&report.to_renderable().to_github_actions());
                     output.push_str("::endgroup::\n");
                 }
                 output.push_str(&format!(
@@ -5204,37 +5206,8 @@ fn render_single(
             let text = renderable.to_text_with_min_severity(explain, width, min_severity);
             Ok(destyle_text(text, ascii, plain))
         }
-        OutputFormat::GithubActions => Ok(render_github_actions(report)),
+        OutputFormat::GithubActions => Ok(renderable.to_github_actions()),
     }
-}
-
-fn render_github_actions(report: &report::SafetyReport) -> String {
-    let mut output = String::new();
-    let mut categories: Vec<_> = report.findings_by_category().keys().collect();
-    categories.sort();
-    for category in categories {
-        if let Some(findings) = report.findings_by_category().get(category) {
-            for reported in findings {
-                let finding = reported.finding();
-                let level = if reported.suppressed() {
-                    "notice"
-                } else {
-                    match finding.severity() {
-                        diff::Severity::Critical => "error",
-                        diff::Severity::Warning => "warning",
-                        diff::Severity::Info => "notice",
-                    }
-                };
-                let message = finding.message().replace(['\r', '\n'], " ");
-                output.push_str(&format!("::{level}::[{category}] {message}\n"));
-            }
-        }
-    }
-    output.push_str(&format!(
-        "Soroban Upgrade Safeguard: {}\n",
-        if report.is_safe() { "PASSED" } else { "FAILED" }
-    ));
-    output
 }
 
 /// Reject an output destination that already exists as a directory. Without
