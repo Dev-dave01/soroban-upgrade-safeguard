@@ -243,6 +243,7 @@
         "Struct Documentation Changed",
         "Struct Added",
         "Struct Field Removed",
+        "Struct Field Inserted",
         "Struct Field Reordered",
         "Struct Field Type Changed",
         "Struct Field Added",
