@@ -36,6 +36,11 @@ pub(crate) fn agent_with_timeout(timeout: Duration) -> Agent {
         .redirects(0)
         .redirect_auth_headers(ureq::RedirectAuthHeaders::Never)
         .timeout(timeout)
+        // ureq's connect timeout takes precedence over the overall request
+        // timeout and defaults to 30 seconds, so without this a zero-second
+        // budget would still block for the OS default TCP SYN timeout: the
+        // request's own deadline has to bound the connect phase too.
+        .timeout_connect(timeout)
         .build()
 }
 
