@@ -679,9 +679,16 @@ soroban-upgrade-safeguard doctor --format json
 
 `print-schema` writes machine-readable JSON Schemas (Draft-07), editor completion catalogs, or reference documentation directly from the running binary — no WASM inputs, no config, and no network access:
 
+`--target` selects the schema to print: `report` (the default), `config`,
+`manifest`, or `impact-graph`. The `--config` and `--manifest` flags are
+shorthands for `--target config` and `--target manifest`, respectively.
+
 ```bash
 # Print report JSON Schema (default)
 soroban-upgrade-safeguard print-schema
+
+# Print impact graph JSON Schema
+soroban-upgrade-safeguard print-schema --target impact-graph
 
 # Print configuration file JSON Schema (.safeguard.toml / JSON)
 soroban-upgrade-safeguard print-schema --config
