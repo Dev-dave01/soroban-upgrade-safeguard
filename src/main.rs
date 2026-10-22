@@ -1735,7 +1735,7 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
         .filter(|cat| {
             args.severity
                 .as_ref()
-                .map_or(true, |severity| &cat.severity() == severity.as_severity())
+                .is_none_or(|severity| &cat.severity() == severity.as_severity())
         })
         .collect();
 
@@ -1869,8 +1869,8 @@ fn render_doctor_text(
     remote_cache_dir: &Path,
     oci_cache_dir: &Path,
     metadata_cache_dir: &Path,
-    config_source: &Option<(PathBuf, config::ConfigSource)>,
-    suppressions: &config::Suppressions,
+    config_source: &Option<(PathBuf, ConfigSource)>,
+    suppressions: &SuppressionConfig,
 ) -> String {
     let mut out = String::new();
 
@@ -2030,18 +2030,6 @@ fn render_categories_text(categories: &[category::FindingCategory]) -> String {
     );
     out.push_str("protocol version changes; `Info` is its default severity.\n");
     out
-}
-
-fn print_preflight_line(label: &str, success: bool, detail: Option<String>) {
-    let status = if success {
-        "PASS".green()
-    } else {
-        "FAIL".red()
-    };
-    match detail {
-        Some(detail) => println!("{label:<12}{status}  {detail}"),
-        None => println!("{label:<12}{status}"),
-    }
 }
 
 /// Render the preflight report as human-readable text.
@@ -4506,39 +4494,24 @@ fn render_batch_summary(
                     let info_count = report.info_count();
                     let migrated_count = report.migrated_count();
                     let suppressed_count = report.suppressed_count();
+                    let warning_word = if warning_count == 1 {
+                        "warning"
+                    } else {
+                        "warnings"
+                    };
 
                     text.push_str(&format!(
-                        "  - {}: {} [{}; {}] ({} {}, {} {}, {} {}, {} {}, {} {}){}\n",
+                        "  - {}: {} [{}; {}] ({} critical, {} {}, {} info, {} migrated, {} suppressed){}\n",
                         result.name().bold(),
                         status_str,
                         report.scope().summary_line(),
                         result.coverage(),
                         critical_count,
-                        if critical_count == 1 {
-                            "critical"
-                        } else {
-                            "critical"
-                        },
                         warning_count,
-                        if warning_count == 1 {
-                            "warning"
-                        } else {
-                            "warnings"
-                        },
+                        warning_word,
                         info_count,
-                        if info_count == 1 { "info" } else { "info" },
                         migrated_count,
-                        if migrated_count == 1 {
-                            "migrated"
-                        } else {
-                            "migrated"
-                        },
                         suppressed_count,
-                        if suppressed_count == 1 {
-                            "suppressed"
-                        } else {
-                            "suppressed"
-                        },
                         labels_suffix
                     ));
                 }
