@@ -296,6 +296,7 @@ fn preflight_cli_subcommand_exits_zero_on_success() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_soroban-upgrade-safeguard"))
         .args(["preflight", "--rpc-url", &format!("http://{addr}")])
+        .arg("--allow-http-local")
         .output()
         .expect("failed to run binary");
 
@@ -315,6 +316,7 @@ fn preflight_cli_subcommand_exits_nonzero_on_auth_failure() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_soroban-upgrade-safeguard"))
         .args(["preflight", "--rpc-url", &format!("http://{addr}")])
+        .arg("--allow-http-local")
         .output()
         .expect("failed to run binary");
 
@@ -340,6 +342,7 @@ fn preflight_cli_subcommand_fails_clearly_when_rpc_header_env_var_is_unset() {
             "--rpc-header",
             &format!("X-Api-Key={UNSET_VAR}"),
         ])
+        .arg("--allow-http-local")
         .env_remove(UNSET_VAR)
         .output()
         .expect("failed to run binary");
@@ -370,6 +373,7 @@ fn preflight_cli_subcommand_fails_clearly_when_rpc_header_is_malformed() {
             "--rpc-header",
             "X-Api-Key-Without-Env-Var",
         ])
+        .arg("--allow-http-local")
         .output()
         .expect("failed to run binary");
 
@@ -390,5 +394,28 @@ fn preflight_cli_subcommand_fails_clearly_when_rpc_header_is_malformed() {
     assert!(
         stderr.contains("X-Api-Key-Without-Env-Var"),
         "error must echo back the offending value, got: {stderr}"
+    );
+}
+
+/// Without `--allow-http-local` the `preflight` subcommand keeps the
+/// HTTPS-only default, so a plain-HTTP endpoint is rejected before any
+/// request is attempted. The flag only relaxes the rule for loopback
+/// hosts, and never for a non-loopback one.
+#[test]
+fn preflight_cli_subcommand_rejects_plain_http_without_the_flag() {
+    let output = Command::new(env!("CARGO_BIN_EXE_soroban-upgrade-safeguard"))
+        .args(["preflight", "--rpc-url", "http://127.0.0.1:1"])
+        .output()
+        .expect("failed to run binary");
+
+    assert_ne!(
+        output.status.code(),
+        Some(0),
+        "a plain-HTTP RPC URL must be rejected without --allow-http-local"
+    );
+    let stderr = String::from_utf8(output.stderr).expect("stderr not UTF-8");
+    assert!(
+        stderr.contains("allow-http-local") && stderr.to_lowercase().contains("loopback"),
+        "error should explain the HTTPS-only policy and the opt-in flag, got: {stderr}"
     );
 }

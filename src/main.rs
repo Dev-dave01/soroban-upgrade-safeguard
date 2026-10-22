@@ -640,9 +640,9 @@ struct Args {
     /// Allow HTTP connections for RPC when the host is a loopback address
     /// (`localhost`, `127.0.0.1`, or `::1`). Without this flag, and for
     /// any non-loopback host regardless of this flag, only HTTPS URLs
-    /// are accepted. Only applies to the main comparison's `--rpc-url`;
-    /// the `extract`/`lint`/`init`/`preflight` subcommands always
-    /// require HTTPS for their own `--rpc-url`.
+    /// are accepted. Applies to the main comparison's `--rpc-url` and to
+    /// the `preflight` subcommand's `--rpc-url`; the `extract`/`lint`/
+    /// `init` subcommands always require HTTPS for their own `--rpc-url`.
     #[arg(long)]
     allow_http_local: bool,
 
@@ -1296,6 +1296,13 @@ struct PreflightArgs {
     #[arg(long = "rpc-header", value_name = "NAME=ENV_VAR")]
     rpc_headers: Vec<String>,
 
+    /// Allow plain HTTP for `--rpc-url` when the host is a loopback address
+    /// (`localhost`, `127.0.0.1`, or `::1`), so a locally running RPC
+    /// endpoint can be checked. Without this flag only HTTPS URLs are
+    /// accepted; a non-loopback host is rejected either way.
+    #[arg(long)]
+    allow_http_local: bool,
+
     /// Timeout, in seconds, for the preflight request.
     #[arg(long, value_name = "SECONDS", default_value_t = preflight::DEFAULT_PREFLIGHT_TIMEOUT.as_secs())]
     timeout_secs: u64,
@@ -1469,11 +1476,11 @@ struct PrintSchemaArgs {
     output: Option<PathBuf>,
 }
 
-/// `allow_http_local` is only ever `true` at call sites built from the
-/// top-level `Args` (the main comparison flow), which is the only place
-/// `--allow-http-local` is actually exposed as a flag; `extract`,
-/// `lint`, `init`, and `preflight` each have their own `Args`-like
-/// struct without it, so they pass `false` and always require HTTPS.
+/// `allow_http_local` is `true` only at call sites that expose
+/// `--allow-http-local` as a flag: the top-level `Args` (the main
+/// comparison flow) and the `preflight` subcommand. `extract`, `lint`,
+/// and `init` each have their own `Args`-like struct without it, so they
+/// pass `false` and always require HTTPS.
 fn rpc_config(url: &str, headers: &[String], allow_http_local: bool) -> Result<RpcClientConfig> {
     soroban_upgrade_safeguard::rpc::enforce_rpc_url_scheme_policy(url, allow_http_local)
         .map_err(|e| anyhow::anyhow!(e))?;
@@ -1608,7 +1615,7 @@ fn run_preflight(args: &PreflightArgs) -> Result<()> {
         colored::control::set_override(false);
     }
 
-    let config = rpc_config(&args.rpc_url, &args.rpc_headers, false)?;
+    let config = rpc_config(&args.rpc_url, &args.rpc_headers, args.allow_http_local)?;
     let report =
         preflight::run_preflight_with_timeout(&config, Duration::from_secs(args.timeout_secs));
 
