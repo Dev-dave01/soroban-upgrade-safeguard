@@ -7167,7 +7167,8 @@ fn scan_directories(
                     "Both batch directories are empty.\n  \
                      old-dir: {}\n  \
                      new-dir: {}\n\
-                     Directory scan requires at least one .wasm artifact in the old directory.{}",
+                     No .wasm files found in batch directories.\n\
+                     Directory scan requires .wasm artifacts. Check that the directories contain built contract files.{}",
                     old_dir.display(),
                     new_dir.display(),
                     hint
