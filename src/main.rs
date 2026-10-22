@@ -945,6 +945,41 @@ enum Command {
     /// Verify a safeguard DSSE attestation and all referenced artifacts offline
     VerifyAttestation(VerifyAttestationArgs),
     /// Streaming JSON Lines batch mode: one job per line on stdin, one result per line on stdout
+    ///
+    /// Reads one JSON job per line from stdin and writes one JSON result per line
+    /// to stdout. Diagnostics go to stderr. All schema versions are `1`.
+    ///
+    /// # Job line (stdin)
+    ///
+    /// `{"schema_version":1,"id":"job-42","old":{"local":"/path/to/old.wasm"},"new":{"local":"/path/to/new.wasm"},"overrides":{"strict":true}}`
+    ///
+    /// Required fields: `schema_version`, `id`, `old`, `new`.
+    ///
+    /// Optional `overrides`: `strict`, `explain`, `ascii`, `empirical`, `suppression_config`.
+    ///
+    /// # Result line (stdout)
+    ///
+    /// `{"schema_version":1,"id":"job-42","status":"success","report":{...},"elapsed_ms":123}`
+    ///
+    /// `status` values: `success`, `failure`, `duplicate`, `malformed`.
+    ///
+    /// `report` is present on `success`; `error` is present on `failure`, `duplicate`, and `malformed`.
+    ///
+    /// # Input descriptors
+    ///
+    /// Every `old` / `new` field is a single-key object that names the source:
+    ///
+    /// - `local`: `{"local": "/path/to/file.wasm"}`
+    ///
+    /// - `rpc`: `{"rpc": {"url": "...", "contract_id": "C..."}}`
+    ///
+    /// - `hash`: `{"hash": {"path": "...", "sha256": "<hex>"}}`
+    ///
+    /// - `extracted`: `{"extracted": "/path/to/spec.json"}`
+    ///
+    /// - `remote`: `{"remote": "https://example.com/file.wasm#sha256=<hex>"}`
+    ///
+    /// For full wire-format documentation see the module comment in `src/jsonl.rs`.
     Stream(StreamArgs),
     /// Validate one contract spec (and optional storage schema) in isolation
     Lint(LintArgs),
@@ -1069,42 +1104,10 @@ struct VerifyAttestationArgs {
 
 /// `stream`: JSON Lines streaming batch mode.
 ///
-/// Reads one JSON job per line from stdin and writes one JSON result per line
-/// to stdout. Diagnostics go to stderr. All schema versions are `1`.
-///
-/// # Job line (stdin)
-///
-/// ```json
-/// {"schema_version":1,"id":"job-42","old":{"local":"/path/to/old.wasm"},"new":{"local":"/path/to/new.wasm"},"overrides":{"strict":true}}
-/// ```
-///
-/// Required fields: `schema_version`, `id`, `old`, `new`.
-/// Optional `overrides`: `strict`, `explain`, `ascii`, `empirical`,
-/// `suppression_config`.
-///
-/// # Result line (stdout)
-///
-/// ```json
-/// {"schema_version":1,"id":"job-42","status":"success","report":{...},"elapsed_ms":123}
-/// ```
-///
-/// `status` values: `success` · `failure` · `duplicate` · `malformed`.
-/// `report` is present on `success`; `error` is present on `failure`,
-/// `duplicate`, and `malformed`.
-///
-/// # Input descriptors
-///
-/// Every `old` / `new` field is a single-key object that names the source:
-///
-/// | Key         | Example value                                            |
-/// |-------------|----------------------------------------------------------|
-/// | `local`     | `{"local": "/path/to/file.wasm"}`                        |
-/// | `rpc`       | `{"rpc": {"url": "...", "contract_id": "C..."}}`         |
-/// | `hash`      | `{"hash": {"path": "...", "sha256": "<hex>"}}`            |
-/// | `extracted` | `{"extracted": "/path/to/spec.json"}`                    |
-/// | `remote`    | `{"remote": "https://example.com/file.wasm#sha256=<hex>"}` |
-///
-/// For full wire-format documentation see the module comment in `src/jsonl.rs`.
+/// The full wire-format documentation lives on the `stream` subcommand's
+/// entry in [`Command`]; clap shows a subcommand's `about`/`long_about`
+/// from the enum variant, so documenting only this struct would leave
+/// `stream --help` without the job and result schemas.
 #[derive(ClapArgs, Debug)]
 struct StreamArgs {
     /// Maximum number of concurrent worker threads.
