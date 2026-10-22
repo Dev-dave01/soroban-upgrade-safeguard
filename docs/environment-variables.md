@@ -1,10 +1,9 @@
 # Environment Variables
 
 Every environment variable the CLI reads, in one place. Each is optional —
-omitting it keeps the compiled-in default — and every one of them is
-overridden by its corresponding CLI flag when both are set. This page is a
-quick index; follow the links for the full precedence rules and behavior of
-each.
+omitting it keeps the compiled-in default — and a corresponding CLI flag takes
+precedence when both are set. This page is a quick index; follow the links for
+the full precedence rules and behavior of each.
 
 | Variable | Purpose | CLI override | Default when unset |
 |---|---|---|---|
@@ -12,6 +11,7 @@ each.
 | `SOROBAN_SAFEGUARD_METADATA_CACHE` | Directory used to cache decoded contract-spec metadata by content hash, shared across local files, `https://`, `oci://`, RPC, batch manifests, and watch mode. | `--metadata-cache-dir <DIR>` | `<OS_TEMP_DIR>/soroban-upgrade-safeguard/metadata-cache` (see [Metadata Cache](metadata_cache.md)). |
 | `SOROBAN_SAFEGUARD_REMOTE_CACHE` | Directory used to cache verified `https://` input downloads by digest. | `--remote-cache-dir <DIR>` / `--no-remote-cache` / `--clear-remote-cache` | `<OS_TEMP_DIR>/soroban-upgrade-safeguard/remote-cache` (see [Remote HTTPS Inputs](remote-https-inputs.md#caching)). |
 | `SOROBAN_SAFEGUARD_OCI_CACHE` | Directory used to cache verified `oci://` input layers by digest. | `--oci-cache-dir <DIR>` / `--no-oci-cache` / `--clear-oci-cache` | `<OS_TEMP_DIR>/soroban-upgrade-safeguard/oci-cache` (see [Documentation — OCI registry inputs](documentation.md#oci-registry-inputs)). |
+| `DOCKER_CONFIG` | Directory containing the Docker CLI config used for `oci://` registry credentials (see [OCI registry](choosing-an-input-source.md#oci-registry)). | — | `$HOME/.docker/config.json`, or `%USERPROFILE%\.docker\config.json` on Windows if `HOME` is unset. |
 | `NO_COLOR` | Disables colored output when set to any non-empty value, regardless of `--color`'s default. Standard cross-tool convention (see [no-color.org](https://no-color.org/)). | `--color <auto\|always\|never>` / `--no-color` / `--plain` | Color follows `--color auto`: on when stdout is a terminal, off otherwise. |
 
 All four `SOROBAN_SAFEGUARD_*` cache/config variables follow the same
