@@ -13,6 +13,7 @@ the full precedence rules and behavior of each.
 | `SOROBAN_SAFEGUARD_OCI_CACHE` | Directory used to cache verified `oci://` input layers by digest. | `--oci-cache-dir <DIR>` / `--no-oci-cache` / `--clear-oci-cache` | `<OS_TEMP_DIR>/soroban-upgrade-safeguard/oci-cache` (see [Documentation — OCI registry inputs](documentation.md#oci-registry-inputs)). |
 | `DOCKER_CONFIG` | Directory containing the Docker CLI config used for `oci://` registry credentials (see [OCI registry](choosing-an-input-source.md#oci-registry)). | — | `$HOME/.docker/config.json`, or `%USERPROFILE%\.docker\config.json` on Windows if `HOME` is unset. |
 | `NO_COLOR` | Disables colored output when set to any non-empty value, regardless of `--color`'s default. Standard cross-tool convention (see [no-color.org](https://no-color.org/)). | `--color <auto\|always\|never>` / `--no-color` / `--plain` | Color follows `--color auto`: on when stdout is a terminal, off otherwise. |
+| `COLUMNS` | Sets the text output width when stdout is a terminal and `--width` is not given. If set but not a valid positive integer, the default width is used. | `--width <COLUMNS>` | `80` |
 
 All four `SOROBAN_SAFEGUARD_*` cache/config variables follow the same
 precedence: an explicit CLI flag wins, the environment variable is checked
