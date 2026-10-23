@@ -278,6 +278,13 @@ An HTTPS URL with a mandatory `#sha256=<hex>` fragment that specifies the expect
 
 **See also:** [Remote HTTPS Inputs](remote-https-inputs.md)
 
+### Metadata Cache
+A content-addressed on-disk cache of the decoded contract model for a WASM build, keyed by the WASM's SHA-256 hash, the tool version, and the settings that affect decoding. A hit skips re-parsing the WASM, which speeds up repeated CI and watch runs. Findings, suppression decisions, and verdicts are never cached, and any key mismatch is a miss rather than a stale hit.
+
+**Use with:** `soroban-upgrade-safeguard <OLD_WASM> <NEW_WASM> --metadata-cache-dir <DIR>` (also `--no-metadata-cache` and `--clear-metadata-cache`)
+
+**See also:** [Content-Addressed Metadata Cache](metadata_cache.md)
+
 ## Related Resources
 
 - [Finding Category Reference](finding-categories.md) — Complete list of all finding categories
