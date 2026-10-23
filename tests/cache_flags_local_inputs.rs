@@ -37,7 +37,10 @@ fn cache_bypass_flags_do_not_affect_local_inputs() {
     assert_eq!(code, 0, "identical local inputs must pass with the flags");
 
     let (without_flags, code) = compare_v1_with_itself(&[]);
-    assert_eq!(code, 0, "identical local inputs must pass without the flags");
+    assert_eq!(
+        code, 0,
+        "identical local inputs must pass without the flags"
+    );
 
     assert_eq!(
         with_flags, without_flags,

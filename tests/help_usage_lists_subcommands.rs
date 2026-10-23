@@ -42,7 +42,10 @@ fn every_listed_subcommand_has_a_usage_line() {
             .lines()
             .skip_while(|line| !line.starts_with("Usage:"))
             .take_while(|line| !line.trim().is_empty());
-        let first = lines.next().unwrap_or_default().trim_start_matches("Usage:");
+        let first = lines
+            .next()
+            .unwrap_or_default()
+            .trim_start_matches("Usage:");
         std::iter::once(first)
             .chain(lines)
             .map(str::trim)

@@ -640,9 +640,9 @@ struct Args {
     /// Allow HTTP connections for RPC when the host is a loopback address
     /// (`localhost`, `127.0.0.1`, or `::1`). Without this flag, and for
     /// any non-loopback host regardless of this flag, only HTTPS URLs
-    /// are accepted. Only applies to the main comparison's `--rpc-url`;
-    /// the `extract`/`lint`/`init`/`preflight` subcommands always
-    /// require HTTPS for their own `--rpc-url`.
+    /// are accepted. Applies to the main comparison's `--rpc-url` and to
+    /// the `preflight` subcommand's `--rpc-url`; the `extract`/`lint`/
+    /// `init` subcommands always require HTTPS for their own `--rpc-url`.
     #[arg(long)]
     allow_http_local: bool,
 
@@ -945,6 +945,41 @@ enum Command {
     /// Verify a safeguard DSSE attestation and all referenced artifacts offline
     VerifyAttestation(VerifyAttestationArgs),
     /// Streaming JSON Lines batch mode: one job per line on stdin, one result per line on stdout
+    ///
+    /// Reads one JSON job per line from stdin and writes one JSON result per line
+    /// to stdout. Diagnostics go to stderr. All schema versions are `1`.
+    ///
+    /// # Job line (stdin)
+    ///
+    /// `{"schema_version":1,"id":"job-42","old":{"local":"/path/to/old.wasm"},"new":{"local":"/path/to/new.wasm"},"overrides":{"strict":true}}`
+    ///
+    /// Required fields: `schema_version`, `id`, `old`, `new`.
+    ///
+    /// Optional `overrides`: `strict`, `explain`, `ascii`, `empirical`, `suppression_config`.
+    ///
+    /// # Result line (stdout)
+    ///
+    /// `{"schema_version":1,"id":"job-42","status":"success","report":{...},"elapsed_ms":123}`
+    ///
+    /// `status` values: `success`, `failure`, `duplicate`, `malformed`.
+    ///
+    /// `report` is present on `success`; `error` is present on `failure`, `duplicate`, and `malformed`.
+    ///
+    /// # Input descriptors
+    ///
+    /// Every `old` / `new` field is a single-key object that names the source:
+    ///
+    /// - `local`: `{"local": "/path/to/file.wasm"}`
+    ///
+    /// - `rpc`: `{"rpc": {"url": "...", "contract_id": "C..."}}`
+    ///
+    /// - `hash`: `{"hash": {"path": "...", "sha256": "<hex>"}}`
+    ///
+    /// - `extracted`: `{"extracted": "/path/to/spec.json"}`
+    ///
+    /// - `remote`: `{"remote": "https://example.com/file.wasm#sha256=<hex>"}`
+    ///
+    /// For full wire-format documentation see the module comment in `src/jsonl.rs`.
     Stream(StreamArgs),
     /// Validate one contract spec (and optional storage schema) in isolation
     Lint(LintArgs),
@@ -1069,42 +1104,10 @@ struct VerifyAttestationArgs {
 
 /// `stream`: JSON Lines streaming batch mode.
 ///
-/// Reads one JSON job per line from stdin and writes one JSON result per line
-/// to stdout. Diagnostics go to stderr. All schema versions are `1`.
-///
-/// # Job line (stdin)
-///
-/// ```json
-/// {"schema_version":1,"id":"job-42","old":{"local":"/path/to/old.wasm"},"new":{"local":"/path/to/new.wasm"},"overrides":{"strict":true}}
-/// ```
-///
-/// Required fields: `schema_version`, `id`, `old`, `new`.
-/// Optional `overrides`: `strict`, `explain`, `ascii`, `empirical`,
-/// `suppression_config`.
-///
-/// # Result line (stdout)
-///
-/// ```json
-/// {"schema_version":1,"id":"job-42","status":"success","report":{...},"elapsed_ms":123}
-/// ```
-///
-/// `status` values: `success` · `failure` · `duplicate` · `malformed`.
-/// `report` is present on `success`; `error` is present on `failure`,
-/// `duplicate`, and `malformed`.
-///
-/// # Input descriptors
-///
-/// Every `old` / `new` field is a single-key object that names the source:
-///
-/// | Key         | Example value                                            |
-/// |-------------|----------------------------------------------------------|
-/// | `local`     | `{"local": "/path/to/file.wasm"}`                        |
-/// | `rpc`       | `{"rpc": {"url": "...", "contract_id": "C..."}}`         |
-/// | `hash`      | `{"hash": {"path": "...", "sha256": "<hex>"}}`            |
-/// | `extracted` | `{"extracted": "/path/to/spec.json"}`                    |
-/// | `remote`    | `{"remote": "https://example.com/file.wasm#sha256=<hex>"}` |
-///
-/// For full wire-format documentation see the module comment in `src/jsonl.rs`.
+/// The full wire-format documentation lives on the `stream` subcommand's
+/// entry in [`Command`]; clap shows a subcommand's `about`/`long_about`
+/// from the enum variant, so documenting only this struct would leave
+/// `stream --help` without the job and result schemas.
 #[derive(ClapArgs, Debug)]
 struct StreamArgs {
     /// Maximum number of concurrent worker threads.
@@ -1296,6 +1299,13 @@ struct PreflightArgs {
     #[arg(long = "rpc-header", value_name = "NAME=ENV_VAR")]
     rpc_headers: Vec<String>,
 
+    /// Allow plain HTTP for `--rpc-url` when the host is a loopback address
+    /// (`localhost`, `127.0.0.1`, or `::1`), so a locally running RPC
+    /// endpoint can be checked. Without this flag only HTTPS URLs are
+    /// accepted; a non-loopback host is rejected either way.
+    #[arg(long)]
+    allow_http_local: bool,
+
     /// Timeout, in seconds, for the preflight request.
     #[arg(long, value_name = "SECONDS", default_value_t = preflight::DEFAULT_PREFLIGHT_TIMEOUT.as_secs())]
     timeout_secs: u64,
@@ -1469,11 +1479,11 @@ struct PrintSchemaArgs {
     output: Option<PathBuf>,
 }
 
-/// `allow_http_local` is only ever `true` at call sites built from the
-/// top-level `Args` (the main comparison flow), which is the only place
-/// `--allow-http-local` is actually exposed as a flag; `extract`,
-/// `lint`, `init`, and `preflight` each have their own `Args`-like
-/// struct without it, so they pass `false` and always require HTTPS.
+/// `allow_http_local` is `true` only at call sites that expose
+/// `--allow-http-local` as a flag: the top-level `Args` (the main
+/// comparison flow) and the `preflight` subcommand. `extract`, `lint`,
+/// and `init` each have their own `Args`-like struct without it, so they
+/// pass `false` and always require HTTPS.
 fn rpc_config(url: &str, headers: &[String], allow_http_local: bool) -> Result<RpcClientConfig> {
     soroban_upgrade_safeguard::rpc::enforce_rpc_url_scheme_policy(url, allow_http_local)
         .map_err(|e| anyhow::anyhow!(e))?;
@@ -1608,7 +1618,7 @@ fn run_preflight(args: &PreflightArgs) -> Result<()> {
         colored::control::set_override(false);
     }
 
-    let config = rpc_config(&args.rpc_url, &args.rpc_headers, false)?;
+    let config = rpc_config(&args.rpc_url, &args.rpc_headers, args.allow_http_local)?;
     let report =
         preflight::run_preflight_with_timeout(&config, Duration::from_secs(args.timeout_secs));
 
@@ -1735,7 +1745,7 @@ fn run_categories(args: &CategoriesArgs) -> Result<()> {
         .filter(|cat| {
             args.severity
                 .as_ref()
-                .map_or(true, |severity| &cat.severity() == severity.as_severity())
+                .is_none_or(|severity| &cat.severity() == severity.as_severity())
         })
         .collect();
 
@@ -1869,8 +1879,8 @@ fn render_doctor_text(
     remote_cache_dir: &Path,
     oci_cache_dir: &Path,
     metadata_cache_dir: &Path,
-    config_source: &Option<(PathBuf, config::ConfigSource)>,
-    suppressions: &config::Suppressions,
+    config_source: &Option<(PathBuf, ConfigSource)>,
+    suppressions: &SuppressionConfig,
 ) -> String {
     let mut out = String::new();
 
@@ -2030,18 +2040,6 @@ fn render_categories_text(categories: &[category::FindingCategory]) -> String {
     );
     out.push_str("protocol version changes; `Info` is its default severity.\n");
     out
-}
-
-fn print_preflight_line(label: &str, success: bool, detail: Option<String>) {
-    let status = if success {
-        "PASS".green()
-    } else {
-        "FAIL".red()
-    };
-    match detail {
-        Some(detail) => println!("{label:<12}{status}  {detail}"),
-        None => println!("{label:<12}{status}"),
-    }
 }
 
 /// Render the preflight report as human-readable text.
@@ -2773,7 +2771,9 @@ fn run_render(args: &RenderArgs) -> Result<()> {
         RenderFormat::GithubActions => {
             // Disable color: annotations must not contain ANSI escape codes.
             colored::control::set_override(false);
-            report.to_github_actions()
+            // The trailing newline matches what the live comparison prints,
+            // so a re-rendered report is byte-identical to the original run.
+            format!("{}\n", report.to_github_actions())
         }
     };
 
@@ -4506,39 +4506,24 @@ fn render_batch_summary(
                     let info_count = report.info_count();
                     let migrated_count = report.migrated_count();
                     let suppressed_count = report.suppressed_count();
+                    let warning_word = if warning_count == 1 {
+                        "warning"
+                    } else {
+                        "warnings"
+                    };
 
                     text.push_str(&format!(
-                        "  - {}: {} [{}; {}] ({} {}, {} {}, {} {}, {} {}, {} {}){}\n",
+                        "  - {}: {} [{}; {}] ({} critical, {} {}, {} info, {} migrated, {} suppressed){}\n",
                         result.name().bold(),
                         status_str,
                         report.scope().summary_line(),
                         result.coverage(),
                         critical_count,
-                        if critical_count == 1 {
-                            "critical"
-                        } else {
-                            "critical"
-                        },
                         warning_count,
-                        if warning_count == 1 {
-                            "warning"
-                        } else {
-                            "warnings"
-                        },
+                        warning_word,
                         info_count,
-                        if info_count == 1 { "info" } else { "info" },
                         migrated_count,
-                        if migrated_count == 1 {
-                            "migrated"
-                        } else {
-                            "migrated"
-                        },
                         suppressed_count,
-                        if suppressed_count == 1 {
-                            "suppressed"
-                        } else {
-                            "suppressed"
-                        },
                         labels_suffix
                     ));
                 }
@@ -4569,7 +4554,7 @@ fn render_batch_summary(
                 for result in results {
                     output.push_str(&format!("::group::{}\n", result.name()));
                     let report = result.report();
-                    output.push_str(&render_github_actions(report));
+                    output.push_str(&report.to_renderable().to_github_actions());
                     output.push_str("::endgroup::\n");
                 }
                 output.push_str(&format!(
@@ -5231,37 +5216,8 @@ fn render_single(
             let text = renderable.to_text_with_min_severity(explain, width, min_severity);
             Ok(destyle_text(text, ascii, plain))
         }
-        OutputFormat::GithubActions => Ok(render_github_actions(report)),
+        OutputFormat::GithubActions => Ok(renderable.to_github_actions()),
     }
-}
-
-fn render_github_actions(report: &report::SafetyReport) -> String {
-    let mut output = String::new();
-    let mut categories: Vec<_> = report.findings_by_category().keys().collect();
-    categories.sort();
-    for category in categories {
-        if let Some(findings) = report.findings_by_category().get(category) {
-            for reported in findings {
-                let finding = reported.finding();
-                let level = if reported.suppressed() {
-                    "notice"
-                } else {
-                    match finding.severity() {
-                        diff::Severity::Critical => "error",
-                        diff::Severity::Warning => "warning",
-                        diff::Severity::Info => "notice",
-                    }
-                };
-                let message = finding.message().replace(['\r', '\n'], " ");
-                output.push_str(&format!("::{level}::[{category}] {message}\n"));
-            }
-        }
-    }
-    output.push_str(&format!(
-        "Soroban Upgrade Safeguard: {}\n",
-        if report.is_safe() { "PASSED" } else { "FAILED" }
-    ));
-    output
 }
 
 /// Reject an output destination that already exists as a directory. Without

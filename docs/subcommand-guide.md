@@ -190,6 +190,14 @@ Checks that an RPC endpoint is reachable, responds to a `getNetwork` call, and r
 soroban-upgrade-safeguard preflight --rpc-url https://soroban-testnet.stellar.org
 ```
 
+Only HTTPS endpoints are accepted by default. For a locally running RPC
+endpoint, pass `--allow-http-local`, which permits plain HTTP for loopback
+hosts (`localhost`, `127.0.0.1`, `::1`) only:
+
+```bash
+soroban-upgrade-safeguard preflight --rpc-url http://localhost:8000 --allow-http-local
+```
+
 See [RPC Security Checklist](rpc-security-checklist.md).
 
 ### `categories`

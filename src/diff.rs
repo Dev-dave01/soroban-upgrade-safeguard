@@ -2610,10 +2610,7 @@ mod tests {
             vec![("first", ScSpecTypeDef::U32), ("last", ScSpecTypeDef::U64)],
         )]);
         for position in [0, 1] {
-            let mut fields = vec![
-                ("first", ScSpecTypeDef::U32),
-                ("last", ScSpecTypeDef::U64),
-            ];
+            let mut fields = vec![("first", ScSpecTypeDef::U32), ("last", ScSpecTypeDef::U64)];
             fields.insert(position, ("inserted", ScSpecTypeDef::Bool));
             let new = spec_with_structs(vec![("Data", fields)]);
             let report = compare(&old, &new);
@@ -2649,7 +2646,9 @@ mod tests {
         assert_eq!(report.findings.len(), 3, "{:#?}", report.findings);
         assert_eq!(report.critical_count(), 2);
         assert_eq!(report.warning_count(), 1);
-        let tail = report.findings.iter()
+        let tail = report
+            .findings
+            .iter()
             .find(|f| f.target.as_deref() == Some("Data.tail"))
             .unwrap();
         assert_eq!(tail.category, "Struct Field Added");
@@ -2687,12 +2686,17 @@ mod tests {
 
             assert_eq!(report.findings.len(), if insert { 3 } else { 2 });
             assert_eq!(
-                report.findings.iter()
+                report
+                    .findings
+                    .iter()
                     .filter(|f| f.category == "Struct Field Reordered")
                     .count(),
                 2
             );
-            assert!(report.findings.iter().all(|f| f.severity == Severity::Critical));
+            assert!(report
+                .findings
+                .iter()
+                .all(|f| f.severity == Severity::Critical));
         }
     }
 
@@ -2701,12 +2705,17 @@ mod tests {
         let old = spec_with_structs(vec![("Data", vec![("value", ScSpecTypeDef::U32)])]);
         let new = spec_with_structs(vec![(
             "Data",
-            vec![("inserted", ScSpecTypeDef::Bool), ("value", ScSpecTypeDef::U64)],
+            vec![
+                ("inserted", ScSpecTypeDef::Bool),
+                ("value", ScSpecTypeDef::U64),
+            ],
         )]);
         let report = compare(&old, &new);
 
         assert_eq!(report.findings.len(), 2, "{:#?}", report.findings);
-        let changed = report.findings.iter()
+        let changed = report
+            .findings
+            .iter()
             .find(|f| f.category == "Struct Field Type Changed")
             .unwrap();
         assert_eq!(changed.target.as_deref(), Some("Data.value"));

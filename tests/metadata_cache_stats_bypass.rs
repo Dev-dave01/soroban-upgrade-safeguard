@@ -119,9 +119,10 @@ fn metadata_cache_stats_bypass_message_appears_before_comparison() {
     }
 
     // Verify no other cache-related output after the bypass message
-    let after_bypass = &stderr[bypass_pos..];
+    let bypass_message = "metadata-cache: bypassed (--no-metadata-cache)";
+    let after_bypass = &stderr[bypass_pos + bypass_message.len()..];
     assert!(
-        !after_bypass[50..].contains("metadata-cache:"),
+        !after_bypass.contains("metadata-cache:"),
         "no other metadata-cache output should appear after bypass message, got: {stderr}"
     );
 }

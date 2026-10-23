@@ -1780,7 +1780,7 @@ fn max_pairs_zero_rejects_any_manifest_with_pairs() {
     );
     assert_eq!(run.code, 1);
     let combined = format!("{}{}", run.stdout, run.stderr);
-    assert!(combined.contains("1 pairs"), "got: {combined}");
+    assert!(combined.contains("contains 1 pair,"), "got: {combined}");
     assert!(combined.contains("maximum of 0"), "got: {combined}");
 }
 

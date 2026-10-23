@@ -125,7 +125,11 @@ fn compare_direction(
                 path: format!("function.{name}.arguments"),
                 reason: format!(
                     "the client sends {} but the provider requires {}",
-                    pluralize(client_fn.inputs.len(), "positional argument", "positional arguments"),
+                    pluralize(
+                        client_fn.inputs.len(),
+                        "positional argument",
+                        "positional arguments"
+                    ),
                     contract_fn.inputs.len()
                 ),
             });

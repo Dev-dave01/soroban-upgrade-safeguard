@@ -603,11 +603,7 @@ impl MetricsRegistry {
                 "# HELP soroban_safeguard_run_duration_seconds Total wall-clock time of the analysis run."
             )
             .unwrap();
-            writeln!(
-                out,
-                "# TYPE soroban_safeguard_run_duration_seconds counter"
-            )
-            .unwrap();
+            writeln!(out, "# TYPE soroban_safeguard_run_duration_seconds counter").unwrap();
             writeln!(
                 out,
                 "soroban_safeguard_run_duration_seconds_total {:.9}",
@@ -693,11 +689,7 @@ impl MetricsRegistry {
                 "# HELP soroban_safeguard_resource_limit_hits Number of times a configured resource limit (WASM size, complexity budget) was exceeded."
             )
             .unwrap();
-            writeln!(
-                out,
-                "# TYPE soroban_safeguard_resource_limit_hits counter"
-            )
-            .unwrap();
+            writeln!(out, "# TYPE soroban_safeguard_resource_limit_hits counter").unwrap();
             writeln!(
                 out,
                 "soroban_safeguard_resource_limit_hits_total {}",

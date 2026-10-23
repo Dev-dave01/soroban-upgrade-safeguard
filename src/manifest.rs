@@ -798,7 +798,11 @@ pub fn resolve(root: &Path, cli: &CliSettings) -> Result<ResolvedManifest> {
     // accidentally generated manifest with thousands of pairs is rejected as
     // a configuration error, not run until something else gives out.
     if walk.pairs.len() > cli.max_pairs {
-        let pair_word = if walk.pairs.len() == 1 { "pair" } else { "pairs" };
+        let pair_word = if walk.pairs.len() == 1 {
+            "pair"
+        } else {
+            "pairs"
+        };
         let max_word = if cli.max_pairs == 1 { "pair" } else { "pairs" };
         bail!(
             "Manifest composition contains {} {}, exceeding the maximum of {} {} (--max-pairs).\n  \
@@ -2404,9 +2408,15 @@ mod tests {
             ..CliSettings::default()
         };
         let error1 = format!("{:#}", resolve(&root1, &cli1).unwrap_err());
-        assert!(error1.contains("1 pair,"), "should use singular, got: {error1}");
-        assert!(!error1.contains("1 pairs"), "should not say '1 pairs', got: {error1}");
-        
+        assert!(
+            error1.contains("1 pair,"),
+            "should use singular, got: {error1}"
+        );
+        assert!(
+            !error1.contains("1 pairs"),
+            "should not say '1 pairs', got: {error1}"
+        );
+
         // Test plural "2 pairs" wording
         let dir2 = temp_dir("max-pairs-plural");
         let root2 = write(&dir2, "root.toml", &pairs_toml(2));
@@ -2415,8 +2425,14 @@ mod tests {
             ..CliSettings::default()
         };
         let error2 = format!("{:#}", resolve(&root2, &cli2).unwrap_err());
-        assert!(error2.contains("2 pairs"), "should use plural, got: {error2}");
-        assert!(error2.contains("maximum of 1 pair"), "should use singular for max, got: {error2}");
+        assert!(
+            error2.contains("2 pairs"),
+            "should use plural, got: {error2}"
+        );
+        assert!(
+            error2.contains("maximum of 1 pair"),
+            "should use singular for max, got: {error2}"
+        );
     }
 
     #[test]
