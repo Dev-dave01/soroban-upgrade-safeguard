@@ -109,6 +109,13 @@ The configuration that controls which findings fail a run. Policies can:
 
 **See also:** [Named Policy Profiles](named_policy_profiles.md)
 
+### Strict Mode
+A run setting that makes **Warning** findings fail the run in addition to **Critical** ones. Without it, only unsuppressed Critical findings produce a failing exit code; with it, any unsuppressed Warning or Critical finding does. **Info** findings never affect the exit code. A manifest can enable strict mode per pair, but it cannot disable `--strict` passed on the command line.
+
+**Use with:** `soroban-upgrade-safeguard <OLD_WASM> <NEW_WASM> --strict`
+
+**See also:** [Strict mode](../README.md#strict-mode)
+
 ### Compatibility Budget
 A bounded **count** of findings allowed at a given scope, evaluated after
 analysis without changing how any individual finding is classified,
