@@ -116,6 +116,13 @@ A run setting that makes **Warning** findings fail the run in addition to **Crit
 
 **See also:** [Strict mode](../README.md#strict-mode)
 
+### Policy Bundle
+A small, versioned, signed document that carries an organization's centrally governed compatibility policy, resource limits, and rule documentation. It is opt-in, verified against trusted public keys before anything is applied, and can only tighten the local policy, never loosen it. A bundle that fails verification aborts the run before any WASM is loaded.
+
+**Use with:** `soroban-upgrade-safeguard <OLD_WASM> <NEW_WASM> --policy-bundle <PATH_OR_URL> --trusted-bundle-key <ID=PATH>`
+
+**See also:** [Signed Policy Bundles](policy-bundles.md)
+
 ### Compatibility Budget
 A bounded **count** of findings allowed at a given scope, evaluated after
 analysis without changing how any individual finding is classified,
