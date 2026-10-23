@@ -109,6 +109,20 @@ The configuration that controls which findings fail a run. Policies can:
 
 **See also:** [Named Policy Profiles](named_policy_profiles.md)
 
+### Strict Mode
+A run setting that makes **Warning** findings fail the run in addition to **Critical** ones. Without it, only unsuppressed Critical findings produce a failing exit code; with it, any unsuppressed Warning or Critical finding does. **Info** findings never affect the exit code. A manifest can enable strict mode per pair, but it cannot disable `--strict` passed on the command line.
+
+**Use with:** `soroban-upgrade-safeguard <OLD_WASM> <NEW_WASM> --strict`
+
+**See also:** [Strict mode](../README.md#strict-mode)
+
+### Policy Bundle
+A small, versioned, signed document that carries an organization's centrally governed compatibility policy, resource limits, and rule documentation. It is opt-in, verified against trusted public keys before anything is applied, and can only tighten the local policy, never loosen it. A bundle that fails verification aborts the run before any WASM is loaded.
+
+**Use with:** `soroban-upgrade-safeguard <OLD_WASM> <NEW_WASM> --policy-bundle <PATH_OR_URL> --trusted-bundle-key <ID=PATH>`
+
+**See also:** [Signed Policy Bundles](policy-bundles.md)
+
 ### Compatibility Budget
 A bounded **count** of findings allowed at a given scope, evaluated after
 analysis without changing how any individual finding is classified,
@@ -263,6 +277,13 @@ An HTTPS URL with a mandatory `#sha256=<hex>` fragment that specifies the expect
 **Example:** `https://cdn.example.com/contract.wasm#sha256=3b1a2c9e...`
 
 **See also:** [Remote HTTPS Inputs](remote-https-inputs.md)
+
+### Metadata Cache
+A content-addressed on-disk cache of the decoded contract model for a WASM build, keyed by the WASM's SHA-256 hash, the tool version, and the settings that affect decoding. A hit skips re-parsing the WASM, which speeds up repeated CI and watch runs. Findings, suppression decisions, and verdicts are never cached, and any key mismatch is a miss rather than a stale hit.
+
+**Use with:** `soroban-upgrade-safeguard <OLD_WASM> <NEW_WASM> --metadata-cache-dir <DIR>` (also `--no-metadata-cache` and `--clear-metadata-cache`)
+
+**See also:** [Content-Addressed Metadata Cache](metadata_cache.md)
 
 ## Related Resources
 
